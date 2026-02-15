@@ -13,9 +13,13 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    console.warn('No token found in localStorage');
   }
+
+  // If data is FormData, let browser set Content-Type with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+
   return config;
 });
 

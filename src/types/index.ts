@@ -25,6 +25,15 @@ export interface User {
   addresses?: Address[];
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  image?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -32,6 +41,12 @@ export interface Product {
   price: number;
   stock: number;
   images: string[];
+  height?: number;
+  width?: number;
+  length?: number;
+  longDescription?: string;
+  categoryId?: string;
+  category?: Category;
   createdAt: string;
   updatedAt: string;
   variants?: Variant[];

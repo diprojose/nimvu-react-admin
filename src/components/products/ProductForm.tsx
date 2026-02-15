@@ -1,6 +1,8 @@
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -11,11 +13,19 @@ import {
   FormItem,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Product } from '@/types';
 import { useEffect } from 'react';
 import { Trash, Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { useCategories } from '@/hooks/useCategories';
 
 const variantSchema = z.object({
   name: z.string().min(1, 'Nombre de variante requerido'),
@@ -31,6 +41,11 @@ const productSchema = z.object({
   price: z.coerce.number().min(0, 'El precio debe ser mayor o igual a 0'),
   stock: z.coerce.number().int().min(0, 'El stock debe ser un entero positivo'),
   images: z.array(z.string()).default([]),
+  height: z.coerce.number().min(0).optional(),
+  width: z.coerce.number().min(0).optional(),
+  length: z.coerce.number().min(0).optional(),
+  longDescription: z.string().optional(),
+  categoryId: z.string().optional(),
   variants: z.array(variantSchema).default([]),
 });
 
@@ -48,12 +63,18 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
     defaultValues: {
       name: '',
       description: '',
-      price: 0,
       stock: 0,
       images: [],
+      height: 0,
+      width: 0,
+      length: 0,
+      longDescription: '',
+      categoryId: '',
       variants: [],
     },
   });
+
+  const { data: categories } = useCategories();
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -67,13 +88,18 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         description: initialData.description || '',
         price: initialData.price,
         stock: initialData.stock,
-        images: initialData.images, // Now passing array directly
+        images: initialData.images,
+        height: initialData.height || 0,
+        width: initialData.width || 0,
+        length: initialData.length || 0,
+        longDescription: initialData.longDescription || '',
+        categoryId: initialData.categoryId || '',
         variants: initialData.variants?.map(v => ({
           name: v.name,
           sku: v.sku,
           price: v.price || initialData.price,
           stock: v.stock,
-          images: v.images || [], // Now passing array directly
+          images: v.images || [],
         })) || []
       });
     } else {
@@ -83,6 +109,11 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         price: 0,
         stock: 0,
         images: [],
+        height: 0,
+        width: 0,
+        length: 0,
+        longDescription: '',
+        categoryId: '',
         variants: [],
       });
     }
@@ -141,12 +172,95 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
 
         <FormField
           control={form.control}
+          name="categoryId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Categoría</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar categoría" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {categories?.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-3 gap-4">
+          <FormField
+            control={form.control}
+            name="height"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Altura (cm)</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.1" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="width"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ancho (cm)</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.1" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="length"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Largo (cm)</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.1" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Descripción</FormLabel>
+              <FormLabel>Descripción Corta</FormLabel>
               <FormControl>
                 <Input placeholder="Descripción breve" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="longDescription"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Descripción Larga</FormLabel>
+              <FormControl>
+                <ReactQuill theme="snow" value={field.value} onChange={field.onChange} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -276,6 +390,6 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
           </Button>
         </div>
       </form>
-    </Form>
+    </Form >
   );
 }

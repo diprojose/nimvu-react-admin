@@ -35,8 +35,8 @@ export default function Products() {
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
 
   const handleSaveProduct = (values: any) => {
-    // Basic formatting for images
-    const images = values.images ? values.images.split(',').map((url: string) => url.trim()).filter(Boolean) : [];
+    // Images are now arrays from the form
+    const images = values.images || [];
 
     // Ensure variants have proper typing/structure
     const variants = values.variants?.map((v: any) => ({
@@ -44,7 +44,7 @@ export default function Products() {
       sku: v.sku,
       stock: Number(v.stock),
       price: v.price ? Number(v.price) : Number(values.price), // Fallback to main price
-      images: v.images ? v.images.split(',').map((url: string) => url.trim()).filter(Boolean) : [],
+      images: v.images || [],
     })) || [];
 
     const payload = {
