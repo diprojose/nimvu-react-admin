@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Products';
+import Categories from '@/pages/Categories';
 import Orders from '@/pages/Orders';
 import Users from '@/pages/Users';
 import Login from '@/pages/Login';
@@ -15,6 +16,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="products" element={<Products />} />
+          <Route path="categories" element={<Categories />} />
           <Route path="orders" element={<Orders />} />
           <Route path="users" element={<Users />} />
         </Route>
