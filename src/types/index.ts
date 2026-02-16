@@ -85,3 +85,15 @@ export interface OrderItem {
   variantId?: string;
   variant?: Variant;
 }
+
+export interface Collection {
+  id: string;
+  name: string;
+  description?: string;
+  image?: string;
+  isActive: boolean;
+  slug: string;
+  products?: Product[];
+  createdAt: string;
+  updatedAt: string;
+}
