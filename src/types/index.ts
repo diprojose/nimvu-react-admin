@@ -50,6 +50,8 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
   variants?: Variant[];
+  discountPrice?: number;
+  discounts?: Discount[];
 }
 
 export interface Variant {
@@ -94,6 +96,36 @@ export interface Collection {
   isActive: boolean;
   slug: string;
   products?: Product[];
+  createdAt: string;
+  updatedAt: string;
+  discounts?: Discount[];
+}
+
+export type DiscountType = 'PERCENTAGE' | 'FIXED';
+
+export interface Discount {
+  id: string;
+  name: string;
+  code?: string;
+  type: DiscountType;
+  value: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  usageLimit?: number;
+  usedCount: number;
+  products?: Product[];
+  collections?: Collection[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShippingRate {
+  id: string;
+  country: string;
+  state?: string;
+  city?: string;
+  price: number;
   createdAt: string;
   updatedAt: string;
 }

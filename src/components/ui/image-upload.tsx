@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, X, Loader2 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface ImageUploadProps {
@@ -50,6 +51,11 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
     onChange(value.filter((url) => url !== urlToRemove));
   };
 
+  const handleSetMain = (urlToMakeMain: string) => {
+    const newUrls = [urlToMakeMain, ...value.filter((url) => url !== urlToMakeMain)];
+    onChange(newUrls);
+  };
+
   return (
     <div className="space-y-4">
       <div
@@ -73,8 +79,23 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
 
       {value.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {value.map((url) => (
+          {value.map((url, index) => (
             <div key={url} className="relative aspect-square rounded-md overflow-hidden border group">
+              <div className="absolute top-2 left-2 z-10">
+                {index === 0 ? (
+                  <Badge variant="default" className="bg-green-500 hover:bg-green-600">Principal</Badge>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => handleSetMain(url)}
+                    variant="secondary"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-6 text-xs px-2"
+                  >
+                    Hacer Principal
+                  </Button>
+                )}
+              </div>
               <Button
                 type="button"
                 onClick={() => handleRemove(url)}

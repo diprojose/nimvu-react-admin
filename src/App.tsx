@@ -6,6 +6,8 @@ import Categories from '@/pages/Categories';
 import Orders from '@/pages/Orders';
 import Users from '@/pages/Users';
 import Collections from '@/pages/Collections';
+import Discounts from '@/pages/Discounts';
+import ShippingRates from '@/pages/ShippingRates';
 import Login from '@/pages/Login';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -19,6 +21,8 @@ function App() {
           <Route path="products" element={<Products />} />
           <Route path="categories" element={<Categories />} />
           <Route path="collections" element={<Collections />} />
+          <Route path="discounts" element={<Discounts />} />
+          <Route path="shipping" element={<ShippingRates />} />
           <Route path="orders" element={<Orders />} />
           <Route path="users" element={<Users />} />
         </Route>

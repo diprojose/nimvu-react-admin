@@ -93,7 +93,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         width: initialData.width || 0,
         length: initialData.length || 0,
         longDescription: initialData.longDescription || '',
-        categoryId: initialData.categoryId || '',
+        categoryId: initialData.categoryId || initialData.category?.id || '',
         variants: initialData.variants?.map(v => ({
           name: v.name,
           sku: v.sku,
@@ -176,7 +176,11 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
           render={({ field }) => (
             <FormItem>
               <FormLabel>Categoría</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+              <Select
+                key={field.value || 'empty'}
+                onValueChange={field.onChange}
+                value={field.value}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar categoría" />
