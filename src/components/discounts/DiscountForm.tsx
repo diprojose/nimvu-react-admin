@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Discount, DiscountType } from '@/types';
+import type { Discount } from '@/types';
 import { useEffect } from 'react';
 import { useProducts } from '@/hooks/useProducts';
 import { useCollections } from '@/hooks/useCollections';

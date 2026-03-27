@@ -20,11 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Collection, Product } from '@/types';
+import type { Collection } from '@/types';
 import { useEffect, useState } from 'react';
 import { useProducts } from '@/hooks/useProducts';
 import { X, Plus } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { ImageUpload } from '@/components/ui/image-upload';
 
 const collectionSchema = z.object({

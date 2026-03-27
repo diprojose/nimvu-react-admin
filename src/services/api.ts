@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://nimvu-be-nest.onrender.com',
-  // baseURL: 'http://localhost:3001',
+  // baseURL: 'https://nimvu-be-nest.onrender.com',
+  baseURL: 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },

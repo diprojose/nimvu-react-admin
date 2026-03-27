@@ -4,6 +4,7 @@ import * as z from 'zod';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Form,
   FormControl,
@@ -46,6 +47,7 @@ const productSchema = z.object({
   length: z.coerce.number().min(0).optional(),
   longDescription: z.string().optional(),
   categoryId: z.string().optional(),
+  isB2BOnly: z.boolean().default(false),
   variants: z.array(variantSchema).default([]),
 });
 
@@ -70,6 +72,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
       length: 0,
       longDescription: '',
       categoryId: '',
+      isB2BOnly: false,
       variants: [],
     },
   });
@@ -94,6 +97,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         length: initialData.length || 0,
         longDescription: initialData.longDescription || '',
         categoryId: initialData.categoryId || initialData.category?.id || '',
+        isB2BOnly: initialData.isB2BOnly || false,
         variants: initialData.variants?.map(v => ({
           name: v.name,
           sku: v.sku,
@@ -114,6 +118,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         length: 0,
         longDescription: '',
         categoryId: '',
+        isB2BOnly: false,
         variants: [],
       });
     }
@@ -253,6 +258,27 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
                 <Input placeholder="Descripción breve" {...field} />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="isB2BOnly"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm col-span-full">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Solo para B2B</FormLabel>
+                <p className="text-sm text-gray-500">
+                  Ocultar de la tienda principal y mostrar expuesto solamente en el catálogo B2B.
+                </p>
+              </div>
             </FormItem>
           )}
         />

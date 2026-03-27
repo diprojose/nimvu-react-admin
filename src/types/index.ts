@@ -1,4 +1,4 @@
-export type Role = 'USER' | 'ADMIN';
+export type Role = 'USER' | 'ADMIN' | 'B2B';
 
 export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
@@ -20,6 +20,9 @@ export interface User {
   email: string;
   name?: string;
   role: Role;
+  companyName?: string;
+  taxId?: string;
+  isB2BApproved: boolean;
   createdAt: string;
   updatedAt: string;
   addresses?: Address[];
@@ -30,6 +33,7 @@ export interface Category {
   name: string;
   description?: string;
   image?: string;
+  order?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +56,18 @@ export interface Product {
   variants?: Variant[];
   discountPrice?: number;
   discounts?: Discount[];
+  b2bPrices?: B2BPrice[];
+  isB2BOnly?: boolean;
+}
+
+export interface B2BPrice {
+  id: string;
+  productId: string;
+  minQuantity: number;
+  price: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Variant {

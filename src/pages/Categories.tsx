@@ -23,11 +23,57 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import type { Category } from '@/types';
+import { useEffect } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+
+function SortableTableRow({ category, openEditModal, handleDelete }: { category: Category, openEditModal: any, handleDelete: any }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: category.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="w-10">
+        <div {...attributes} {...listeners} className="cursor-grab hover:text-gray-700 p-2 -ml-2">
+          <GripVertical className="h-4 w-4" />
+        </div>
+      </TableCell>
+      <TableCell className="font-medium">{category.name}</TableCell>
+      <TableCell>{category.description}</TableCell>
+      <TableCell>{category.order || 0}</TableCell>
+      <TableCell className="text-right space-x-2">
+        <Button variant="ghost" size="icon" onClick={() => openEditModal(category)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(category.id)}>
+          <Trash className="h-4 w-4" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 const categorySchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   description: z.string().optional(),
   image: z.string().optional(),
+  order: z.number().optional(),
 });
 
 type CategoryFormValues = z.infer<typeof categorySchema>;
@@ -39,6 +85,47 @@ export default function Categories() {
   const deleteCategory = useDeleteCategory();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [localCategories, setLocalCategories] = useState<Category[]>([]);
+
+  // Sync server data to local state for optimistic dragging
+  useEffect(() => {
+    if (categories) {
+      const sorted = [...categories].sort((a, b) => (a.order || 0) - (b.order || 0));
+      setLocalCategories(sorted);
+    }
+  }, [categories]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id && over?.id) {
+      const oldIndex = localCategories.findIndex((c) => c.id === active.id);
+      const newIndex = localCategories.findIndex((c) => c.id === over.id);
+      
+      const newOrderInfo = arrayMove(localCategories, oldIndex, newIndex);
+      setLocalCategories(newOrderInfo);
+
+      const updatesPromises = newOrderInfo.map((cat, index) => {
+        if (cat.order !== index) {
+          return updateCategory.mutateAsync({ id: cat.id, order: index });
+        }
+        return null;
+      }).filter(Boolean);
+
+      try {
+         await Promise.all(updatesPromises);
+      } catch (error) {
+         console.error('Error actualizando orden de categorías', error);
+      }
+    }
+  };
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -46,6 +133,7 @@ export default function Categories() {
       name: '',
       description: '',
       image: '',
+      order: 0,
     },
   });
 
@@ -74,6 +162,7 @@ export default function Categories() {
       name: category.name,
       description: category.description || '',
       image: category.image || '',
+      order: category.order || 0,
     });
     setIsModalOpen(true);
   };
@@ -95,7 +184,7 @@ export default function Categories() {
           setIsModalOpen(open);
           if (!open) {
             setEditingCategory(null);
-            form.reset({ name: '', description: '', image: '' });
+            form.reset({ name: '', description: '', image: '', order: 0 });
           }
         }}>
           <DialogTrigger asChild>
@@ -135,6 +224,24 @@ export default function Categories() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="order"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Orden</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="0" 
+                          {...field} 
+                          onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={createCategory.isPending || updateCategory.isPending}>
                     {editingCategory ? 'Actualizar' : 'Crear'}
@@ -147,31 +254,31 @@ export default function Categories() {
       </div>
 
       <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Descripción</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories?.map((category) => (
-              <TableRow key={category.id}>
-                <TableCell className="font-medium">{category.name}</TableCell>
-                <TableCell>{category.description}</TableCell>
-                <TableCell className="text-right space-x-2">
-                  <Button variant="ghost" size="icon" onClick={() => openEditModal(category)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(category.id)}>
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </TableCell>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead>Orden</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              <SortableContext items={localCategories.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                {localCategories.map((category) => (
+                  <SortableTableRow 
+                    key={category.id} 
+                    category={category} 
+                    openEditModal={openEditModal} 
+                    handleDelete={handleDelete} 
+                  />
+                ))}
+              </SortableContext>
+            </TableBody>
+          </Table>
+        </DndContext>
       </div>
     </div>
   );
