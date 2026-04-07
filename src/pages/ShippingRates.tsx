@@ -147,6 +147,7 @@ export default function ShippingRates() {
             <DialogTitle>{editingRate ? 'Editar Tarifa' : 'Crear Tarifa'}</DialogTitle>
           </DialogHeader>
           <ShippingRateForm
+            key={editingRate?.id ?? 'new'}
             initialData={editingRate}
             onSubmit={handleSave}
             isLoading={createRate.isPending || updateRate.isPending}

@@ -41,27 +41,21 @@ export function ShippingRateForm({ initialData, onSubmit, isLoading }: ShippingR
   const form = useForm<ShippingRateFormValues>({
     resolver: zodResolver(shippingRateSchema) as any,
     defaultValues: {
-      country: 'Colombia',
-      state: '',
-      city: '',
-      price: 0,
+      country: initialData?.country ?? 'Colombia',
+      state: initialData?.state ?? '',
+      city: initialData?.city ?? '',
+      price: initialData?.price ?? 0,
     },
   });
 
-  const [cities, setCities] = useState<string[]>([]);
+  // Pre-populate cities list if editing a rate that already has a state selected
+  const initialCities = initialData?.state
+    ? (colombiaData.find(d => d.departamento === initialData.state)?.ciudades ?? [])
+    : [];
+
+  const [cities, setCities] = useState<string[]>(initialCities);
 
   const selectedState = form.watch('state');
-
-  useEffect(() => {
-    if (initialData) {
-      form.reset({
-        country: initialData.country,
-        state: initialData.state || '',
-        city: initialData.city || '',
-        price: initialData.price,
-      });
-    }
-  }, [initialData, form]);
 
   useEffect(() => {
     if (selectedState) {
@@ -107,8 +101,7 @@ export function ShippingRateForm({ initialData, onSubmit, isLoading }: ShippingR
                     field.onChange(val);
                     form.setValue('city', ''); // Reset city on state change
                   }}
-                  defaultValue={field.value}
-                  value={field.value}
+                  value={field.value || ''}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -138,8 +131,7 @@ export function ShippingRateForm({ initialData, onSubmit, isLoading }: ShippingR
                 <Select
                   disabled={!selectedState || selectedState === 'empty_value'}
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  value={field.value}
+                  value={field.value || ''}
                 >
                   <FormControl>
                     <SelectTrigger>
