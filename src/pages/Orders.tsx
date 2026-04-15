@@ -28,9 +28,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Trash, Copy, Plus, Download } from "lucide-react";
+import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail } from "lucide-react";
 import { useState, useMemo } from 'react';
-import { useOrders, useUpdateOrder, useDeleteOrder } from '@/hooks/useOrders';
+import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
 import ManualOrderForm from '@/components/orders/ManualOrderForm';
 import * as XLSX from 'xlsx';
 
@@ -74,6 +74,7 @@ export default function Orders() {
   const { data: orders = [], isLoading, error } = useOrders();
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
+  const sendRecovery = useSendRecoveryEmail();
 
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -92,10 +93,14 @@ export default function Orders() {
     });
   }, [orders, dateFilter]);
 
-  // Totales del período filtrado
-  const periodTotal = useMemo(
-    () => filteredOrders.reduce((sum, o) => sum + o.total, 0),
+  // Totales del período filtrado (excluye CANCELLED)
+  const activeOrders = useMemo(
+    () => filteredOrders.filter(o => o.status !== 'CANCELLED'),
     [filteredOrders]
+  );
+  const periodTotal = useMemo(
+    () => activeOrders.reduce((sum, o) => sum + o.total, 0),
+    [activeOrders]
   );
 
   const handleStatusChange = (orderId: string, newStatus: string) => {
@@ -222,7 +227,11 @@ export default function Orders() {
         {/* Resumen del período */}
         <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
           <span>
-            <span className="font-semibold text-gray-900">{filteredOrders.length}</span> órdenes
+            <span className="font-semibold text-gray-900">{activeOrders.length}</span>
+            <span className="text-gray-500"> activas</span>
+            {filteredOrders.length !== activeOrders.length && (
+              <span className="text-gray-400 ml-1">({filteredOrders.length} total)</span>
+            )}
           </span>
           <span>
             Total: <span className="font-semibold text-gray-900">{formatCurrency(periodTotal)}</span>
@@ -313,6 +322,20 @@ export default function Orders() {
                         <DropdownMenuItem onClick={() => navigateDetails(order)}>
                           <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                         </DropdownMenuItem>
+                        {order.status === 'PENDING' && order.paymentMethod === 'WOMPI' && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              sendRecovery.mutate(order.id, {
+                                onSuccess: () => alert('Email de recuperación enviado correctamente'),
+                                onError: () => alert('Error al enviar el email. Intenta de nuevo.'),
+                              })
+                            }
+                            disabled={sendRecovery.isPending || order.recoveryEmailSent}
+                          >
+                            <Mail className="mr-2 h-4 w-4" />
+                            {order.recoveryEmailSent ? 'Email ya enviado' : 'Enviar recordatorio'}
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => handleDelete(order.id)} className="text-red-600">
                           <Trash className="mr-2 h-4 w-4" /> Eliminar
                         </DropdownMenuItem>

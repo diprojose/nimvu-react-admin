@@ -63,6 +63,15 @@ export function useDeleteOrder() {
   });
 }
 
+export function useSendRecoveryEmail() {
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await api.post(`/orders/${orderId}/send-recovery`);
+      return data;
+    },
+  });
+}
+
 export function useCreateManualOrder() {
   const queryClient = useQueryClient();
 
