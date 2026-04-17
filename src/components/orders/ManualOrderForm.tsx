@@ -220,31 +220,35 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
                   ) : (
                     filteredProducts.map((product) => (
                       <div key={product.id}>
-                        {/* Si no tiene variantes, agregar directamente */}
-                        {(!product.variants || product.variants.length === 0) && (
-                          <button
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-3 text-sm"
-                            onClick={() => addProduct(product)}
-                          >
-                            {product.images?.[0] && (
-                              <img src={product.images[0]} alt="" className="w-8 h-8 object-cover rounded" />
-                            )}
-                            <span>{product.name}</span>
-                            <span className="ml-auto text-gray-500">{formatCurrency(product.price)}</span>
-                          </button>
-                        )}
-                        {/* Si tiene variantes, mostrar cada una */}
+                        {/* Producto principal — siempre visible */}
+                        <button
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-3 text-sm"
+                          onClick={() => addProduct(product)}
+                        >
+                          {product.images?.[0] ? (
+                            <img src={product.images[0]} alt="" className="w-8 h-8 object-cover rounded" />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-gray-100 flex-shrink-0" />
+                          )}
+                          <span className="font-medium">{product.name}</span>
+                          {product.variants && product.variants.length > 0 && (
+                            <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">base</span>
+                          )}
+                          <span className="ml-auto text-gray-500">{formatCurrency(product.price)}</span>
+                        </button>
+                        {/* Variantes indentadas debajo del producto */}
                         {product.variants?.map((variant) => (
                           <button
                             key={variant.id}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-3 text-sm"
+                            className="w-full text-left pl-10 pr-4 py-2 hover:bg-gray-50 flex items-center gap-3 text-sm border-t border-gray-50"
                             onClick={() => addProduct(product, variant)}
                           >
-                            <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">V</div>
-                            <div>
-                              <span>{product.name}</span>
-                              <span className="text-gray-400"> — {variant.name}</span>
-                            </div>
+                            {(variant.images?.[0] || product.images?.[0]) ? (
+                              <img src={variant.images?.[0] ?? product.images[0]} alt="" className="w-6 h-6 object-cover rounded flex-shrink-0 opacity-80" />
+                            ) : (
+                              <div className="w-6 h-6 rounded bg-gray-100 flex-shrink-0" />
+                            )}
+                            <span className="text-gray-600">{variant.name}</span>
                             <span className="ml-auto text-gray-500">{formatCurrency(variant.price ?? product.price)}</span>
                           </button>
                         ))}

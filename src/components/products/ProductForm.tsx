@@ -29,6 +29,7 @@ import { ImageUpload } from '@/components/ui/image-upload';
 import { useCategories } from '@/hooks/useCategories';
 
 const variantSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(1, 'Nombre de variante requerido'),
   sku: z.string().min(1, 'SKU requerido'),
   price: z.coerce.number().min(0).optional(),
@@ -99,6 +100,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         categoryId: initialData.categoryId || initialData.category?.id || '',
         isB2BOnly: initialData.isB2BOnly || false,
         variants: initialData.variants?.map(v => ({
+          id: v.id,
           name: v.name,
           sku: v.sku,
           price: v.price || initialData.price,
@@ -130,7 +132,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[80vh] overflow-y-auto px-1">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 overflow-y-auto flex-1 px-1 pb-1">
         <FormField
           control={form.control}
           name="name"

@@ -91,6 +91,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   shippingAddress?: any; // Json type in Prisma, using any for now or strictly typed if structure is known
+  recoveryEmailSent?: boolean;
   items?: OrderItem[];
 }
 
