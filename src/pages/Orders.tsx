@@ -440,7 +440,7 @@ export default function Orders() {
                               />
                               <div className="flex flex-col">
                                 <span>{item.product?.name || 'Producto Desconocido'}</span>
-                                {item.variant && <span className="text-xs text-gray-500">Var: {item.variant.name}</span>}
+                                {(item.variantName || item.variant?.name) && <span className="text-xs text-gray-500">Var: {item.variantName || item.variant?.name}</span>}
                               </div>
                             </div>
                           </TableCell>
