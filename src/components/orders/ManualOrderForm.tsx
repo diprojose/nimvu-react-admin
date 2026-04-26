@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global { interface Window { dataLayer: any[] } }
+
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -115,7 +118,7 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
     }
 
     try {
-      await createManualOrder.mutateAsync({
+      const order = await createManualOrder.mutateAsync({
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
@@ -129,6 +132,41 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
         shippingCost,
         notes: notes.trim() || undefined,
       });
+
+      // Hash user data for Meta (SHA-256)
+      const encoder = new TextEncoder();
+      const hashStr = async (str: string) => {
+        const buf = await crypto.subtle.digest('SHA-256', encoder.encode(str.trim().toLowerCase()));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+
+      const phone = customerPhone.trim().replace(/\D/g, '');
+      const email = customerEmail.trim().toLowerCase();
+      const hashedPhone = phone ? await hashStr(phone) : undefined;
+      const hashedEmail = email ? await hashStr(email) : undefined;
+
+      // Fire purchase event to GTM → Meta Pixel
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'custom_purchase',
+        action_source: 'system_generated',
+        user_data: {
+          ...(hashedEmail && { em: hashedEmail }),
+          ...(hashedPhone && { ph: hashedPhone }),
+        },
+        ecommerce: {
+          transaction_id: order.id,
+          currency: 'COP',
+          value: total,
+          items: lineItems.map((item) => ({
+            item_id: item.productId,
+            item_name: item.productName,
+            price: item.price,
+            quantity: item.quantity,
+          })),
+        },
+      });
+
       handleClose();
     } catch (e: any) {
       const msg = e?.response?.data?.message;

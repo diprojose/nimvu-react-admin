@@ -15,10 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Plus, MapPin } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { CreateUserModal } from '@/components/users/CreateUserModal';
-import type { User, Role } from '@/types';
+import type { User, Role, Address } from '@/types';
 import { useUpdateUserRole, useUpdateUserApproval } from '@/hooks/useUsers';
 import { format, isToday, isThisWeek, isThisMonth, isThisYear, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -45,6 +51,8 @@ export default function Users() {
   const { mutate: updateUserApproval, isPending: isUpdatingApproval } = useUpdateUserApproval();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isAddressOpen, setIsAddressOpen] = useState(false);
 
   const filteredUsers = useMemo(() => {
     if (dateFilter === 'all') return users;
@@ -105,6 +113,7 @@ export default function Users() {
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Rol</TableHead>
+              <TableHead>Dirección</TableHead>
               <TableHead>Aprobado (B2B)</TableHead>
               <TableHead>Fecha Registro</TableHead>
             </TableRow>
@@ -112,7 +121,7 @@ export default function Users() {
           <TableBody>
             {filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-400 py-10">
+                <TableCell colSpan={6} className="text-center text-gray-400 py-10">
                   No hay usuarios registrados en este período
                 </TableCell>
               </TableRow>
@@ -136,6 +145,19 @@ export default function Users() {
                         <SelectItem value="ADMIN">ADMIN</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    {user.addresses && user.addresses.length > 0 ? (
+                      <button
+                        onClick={() => { setSelectedUser(user); setIsAddressOpen(true); }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        {user.addresses.length}
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Sin dirección</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {user.role === 'B2B' ? (
@@ -165,6 +187,28 @@ export default function Users() {
           </TableBody>
         </Table>
       </div>
+
+      {/* ── MODAL DIRECCIONES ── */}
+      <Dialog open={isAddressOpen} onOpenChange={setIsAddressOpen}>
+        <DialogContent className="max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Direcciones de {selectedUser?.name || selectedUser?.email}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {selectedUser?.addresses?.map((addr: Address) => (
+              <div key={addr.id} className="border rounded-lg p-4 space-y-1 text-sm">
+                <p className="font-medium text-gray-900">{addr.street}</p>
+                <p className="text-gray-600">{addr.city}, {addr.state}</p>
+                <p className="text-gray-500">{addr.zip} — {addr.country}</p>
+                {addr.phone && <p className="text-gray-500">Tel: {addr.phone}</p>}
+                <p className="text-xs text-gray-400 pt-1">
+                  Agregada: {format(parseISO(addr.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <CreateUserModal
         isOpen={isCreateModalOpen}

@@ -35,7 +35,7 @@ import ManualOrderForm from '@/components/orders/ManualOrderForm';
 import * as XLSX from 'xlsx';
 
 import type { OrderStatus } from '@/types';
-import { format, isToday, isThisWeek, isThisMonth, isThisYear, parseISO } from 'date-fns';
+import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -60,11 +60,12 @@ const PAYMENT_LABELS: Record<string, string> = {
   WHATSAPP: 'WhatsApp',
 };
 
-type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year';
+type DateFilter = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year';
 
 const DATE_FILTER_LABELS: Record<DateFilter, string> = {
   all: 'Todo',
   today: 'Hoy',
+  yesterday: 'Ayer',
   week: 'Esta semana',
   month: 'Este mes',
   year: 'Este año',
@@ -86,6 +87,7 @@ export default function Orders() {
     return orders.filter((order) => {
       const date = parseISO(order.createdAt);
       if (dateFilter === 'today') return isToday(date);
+      if (dateFilter === 'yesterday') return isYesterday(date);
       if (dateFilter === 'week') return isThisWeek(date, { locale: es });
       if (dateFilter === 'month') return isThisMonth(date);
       if (dateFilter === 'year') return isThisYear(date);
@@ -125,25 +127,41 @@ export default function Orders() {
       minimumFractionDigits: 0,
     }).format(amount);
 
-  const formatAddress = (address: any) => {
-    if (!address) return 'N/A';
+  const parseAddress = (address: any) => {
+    if (!address) return { street: 'N/A', city: 'N/A' };
     if (typeof address === 'string') {
-      try { address = JSON.parse(address); } catch { return address; }
+      try { address = JSON.parse(address); } catch { return { street: address, city: 'N/A' }; }
     }
     if (address.address_1 || address.city || address.province) {
-      return [address.address_1, address.city, address.province, address.postal_code, address.country_code?.toUpperCase()]
-        .filter(Boolean).join(', ');
+      return {
+        street: [address.address_1, address.address_2].filter(Boolean).join(', ') || 'N/A',
+        city: [address.city, address.province].filter(Boolean).join(', ') || 'N/A',
+      };
     }
     if (address.street) {
-      return `${address.street}, ${address.city}, ${address.state} ${address.zip}, ${address.country}`;
+      return {
+        street: address.street || 'N/A',
+        city: [address.city, address.state].filter(Boolean).join(', ') || 'N/A',
+      };
     }
-    return 'Dirección inválida';
+    return { street: 'N/A', city: 'N/A' };
+  };
+
+  const formatAddress = (address: any) => {
+    const parsed = parseAddress(address);
+    return `${parsed.street}, ${parsed.city}`;
+  };
+
+  const getItemsCount = (order: any) => {
+    if (!order.items || order.items.length === 0) return 0;
+    return order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
   };
 
   const handleExportExcel = () => {
     const rows = filteredOrders.map((order) => {
       const addr = typeof order.shippingAddress === 'string'
         ? JSON.parse(order.shippingAddress) : order.shippingAddress;
+      const parsed = parseAddress(order.shippingAddress);
       return {
         'ID': order.id.slice(0, 8),
         'Cliente': order.user?.name || 'N/A',
@@ -152,7 +170,9 @@ export default function Orders() {
         'Fecha': format(parseISO(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: es }),
         'Estado': STATUS_LABELS[order.status],
         'Método de Pago': PAYMENT_LABELS[order.paymentMethod || ''] || order.paymentMethod || 'N/A',
-        'Dirección': formatAddress(order.shippingAddress),
+        'Cant. Productos': getItemsCount(order),
+        'Dirección': parsed.street,
+        'Ciudad': parsed.city,
         'Productos': order.items?.map((i: any) =>
           `${i.product?.name || 'Producto'} x${i.quantity}`
         ).join(' | ') || '',
@@ -166,8 +186,8 @@ export default function Orders() {
     // Ancho de columnas
     ws['!cols'] = [
       { wch: 10 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
-      { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 40 },
-      { wch: 50 }, { wch: 12 }, { wch: 14 },
+      { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
+      { wch: 35 }, { wch: 20 }, { wch: 50 }, { wch: 12 }, { wch: 14 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -249,7 +269,9 @@ export default function Orders() {
               <TableHead>Fecha</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Canal</TableHead>
-              <TableHead>Dirección de Envío</TableHead>
+              <TableHead className="text-center">Productos</TableHead>
+              <TableHead>Dirección</TableHead>
+              <TableHead>Ciudad</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="w-[80px]"></TableHead>
             </TableRow>
@@ -257,7 +279,7 @@ export default function Orders() {
           <TableBody>
             {filteredOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-gray-400 py-10">
+                <TableCell colSpan={10} className="text-center text-gray-400 py-10">
                   No hay órdenes para el período seleccionado
                 </TableCell>
               </TableRow>
@@ -301,8 +323,14 @@ export default function Orders() {
                       {PAYMENT_LABELS[order.paymentMethod || ''] || order.paymentMethod || 'Web'}
                     </span>
                   </TableCell>
-                  <TableCell className="max-w-[180px] truncate" title={formatAddress(order.shippingAddress)}>
-                    {formatAddress(order.shippingAddress)}
+                  <TableCell className="text-center">
+                    <span className="text-sm font-medium">{getItemsCount(order)}</span>
+                  </TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={parseAddress(order.shippingAddress).street}>
+                    {parseAddress(order.shippingAddress).street}
+                  </TableCell>
+                  <TableCell className="max-w-[150px] truncate" title={parseAddress(order.shippingAddress).city}>
+                    {parseAddress(order.shippingAddress).city}
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(order.total)}</TableCell>
                   <TableCell>
