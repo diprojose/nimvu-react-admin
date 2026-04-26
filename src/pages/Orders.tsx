@@ -147,11 +147,6 @@ export default function Orders() {
     return { street: 'N/A', city: 'N/A' };
   };
 
-  const formatAddress = (address: any) => {
-    const parsed = parseAddress(address);
-    return `${parsed.street}, ${parsed.city}`;
-  };
-
   const getItemsCount = (order: any) => {
     if (!order.items || order.items.length === 0) return 0;
     return order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
