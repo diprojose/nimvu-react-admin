@@ -46,7 +46,7 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
   const [showProductSearch, setShowProductSearch] = useState(false);
 
   // Pago
-  const [paymentMethod, setPaymentMethod] = useState<'WHATSAPP' | 'CASH_ON_DELIVERY' | 'WOMPI'>('WHATSAPP');
+  const [paymentMethod, setPaymentMethod] = useState<'WHATSAPP' | 'CASH_ON_DELIVERY' | 'WOMPI' | 'MERCADO_LIBRE'>('WHATSAPP');
   const [shippingCost, setShippingCost] = useState(0);
   const [notes, setNotes] = useState('');
 
@@ -371,6 +371,7 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
                     <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
                     <SelectItem value="CASH_ON_DELIVERY">Contra Entrega</SelectItem>
                     <SelectItem value="WOMPI">Wompi</SelectItem>
+                    <SelectItem value="MERCADO_LIBRE">Mercado Libre</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

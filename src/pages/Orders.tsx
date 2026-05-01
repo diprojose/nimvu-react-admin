@@ -28,7 +28,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail } from "lucide-react";
+import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer } from "lucide-react";
+import { jsPDF } from 'jspdf';
 import { useState, useMemo } from 'react';
 import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
 import ManualOrderForm from '@/components/orders/ManualOrderForm';
@@ -41,6 +42,7 @@ import { es } from 'date-fns/locale';
 const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: 'Pendiente',
   PROCESSING: 'En preparación',
+  PACKED: 'Empacado',
   SHIPPED: 'En camino',
   DELIVERED: 'Entregado',
   CANCELLED: 'Cancelado',
@@ -49,6 +51,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 const STATUS_COLORS: Record<OrderStatus, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
   PROCESSING: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+  PACKED: 'bg-teal-100 text-teal-800 hover:bg-teal-100',
   SHIPPED: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100',
   DELIVERED: 'bg-green-100 text-green-800 hover:bg-green-100',
   CANCELLED: 'bg-red-100 text-red-800 hover:bg-red-100',
@@ -58,6 +61,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   WOMPI: 'Wompi',
   CASH_ON_DELIVERY: 'Contra Entrega',
   WHATSAPP: 'WhatsApp',
+  MERCADO_LIBRE: 'Mercado Libre',
 };
 
 type DateFilter = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year';
@@ -81,6 +85,23 @@ export default function Orders() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filteredOrders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredOrders.map(o => o.id)));
+    }
+  };
 
   const filteredOrders = useMemo(() => {
     if (dateFilter === 'all') return orders;
@@ -102,6 +123,13 @@ export default function Orders() {
   );
   const periodTotal = useMemo(
     () => activeOrders.reduce((sum, o) => sum + o.total, 0),
+    [activeOrders]
+  );
+  const periodProductCount = useMemo(
+    () => activeOrders.reduce(
+      (sum, o) => sum + (o.items?.reduce((s: number, i: any) => s + i.quantity, 0) || 0),
+      0
+    ),
     [activeOrders]
   );
 
@@ -150,6 +178,117 @@ export default function Orders() {
   const getItemsCount = (order: any) => {
     if (!order.items || order.items.length === 0) return 0;
     return order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+  };
+
+  const loadLogo = (): Promise<{ dataUrl: string; w: number; h: number }> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        resolve({
+          dataUrl: canvas.toDataURL('image/png'),
+          w: img.naturalWidth,
+          h: img.naturalHeight,
+        });
+      };
+      img.onerror = reject;
+      img.src = '/nimvu-logo.png';
+    });
+  };
+
+  const handlePrintLabels = async () => {
+    const selected = filteredOrders.filter(o => selectedIds.has(o.id));
+    if (selected.length === 0) {
+      alert('Selecciona al menos una orden para imprimir etiquetas.');
+      return;
+    }
+
+    let logo: { dataUrl: string; w: number; h: number } | null = null;
+    try {
+      logo = await loadLogo();
+    } catch {
+      // Continue without logo if it fails to load
+    }
+
+    // Label size: 10cm x 7cm = ~283pt x ~198pt
+    const LABEL_W = 283;
+    const LABEL_H = 198;
+    const MARGIN = 14;
+    const LOGO_H = 22;
+    // Page: Letter portrait to fit 2 columns x 3 rows
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    const cols = Math.floor(pageW / LABEL_W);
+    const rows = Math.floor(pageH / LABEL_H);
+    const perPage = cols * rows;
+    const offsetX = (pageW - cols * LABEL_W) / 2;
+    const offsetY = (pageH - rows * LABEL_H) / 2;
+
+    selected.forEach((order, i) => {
+      if (i > 0 && i % perPage === 0) doc.addPage();
+      const posInPage = i % perPage;
+      const col = posInPage % cols;
+      const row = Math.floor(posInPage / cols);
+      const labelX = offsetX + col * LABEL_W;
+      const labelY = offsetY + row * LABEL_H;
+      const x = labelX + MARGIN;
+
+      // Draw label border
+      doc.setDrawColor(200);
+      doc.rect(labelX, labelY, LABEL_W, LABEL_H);
+
+      // Logo centered at top
+      let contentTop = labelY + MARGIN;
+      if (logo) {
+        const aspect = logo.w / logo.h;
+        const logoW = LOGO_H * aspect;
+        const logoX = labelX + (LABEL_W - logoW) / 2;
+        doc.addImage(logo.dataUrl, 'PNG', logoX, contentTop, logoW, LOGO_H);
+        contentTop += LOGO_H + 8;
+      }
+
+      const addr = typeof order.shippingAddress === 'string'
+        ? JSON.parse(order.shippingAddress) : order.shippingAddress;
+      const parsed = parseAddress(order.shippingAddress);
+      const phone = addr?.phone || 'N/A';
+      const isCOD = order.paymentMethod === 'CASH_ON_DELIVERY';
+
+      // Name
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text(order.user?.name || 'Cliente', x, contentTop + 12);
+
+      // Phone
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Tel: ${phone}`, x, contentTop + 30);
+
+      // Address
+      const addressLines = doc.splitTextToSize(parsed.street, LABEL_W - MARGIN * 2);
+      doc.text(addressLines, x, contentTop + 46);
+      const addressHeight = addressLines.length * 12;
+
+      // City / Dept
+      doc.setFont('helvetica', 'bold');
+      doc.text(parsed.city, x, contentTop + 46 + addressHeight + 4);
+
+      // COD amount
+      if (isCOD) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 50, 50);
+        doc.text(`COBRAR: ${formatCurrency(order.total)}`, x, labelY + LABEL_H - MARGIN - 10);
+        doc.setTextColor(0, 0, 0);
+      }
+    });
+
+    doc.save(`etiquetas_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleExportExcel = () => {
@@ -212,6 +351,12 @@ export default function Orders() {
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold">Órdenes</h1>
         <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="outline" onClick={handlePrintLabels} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Imprimir Etiquetas ({selectedIds.size})
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExportExcel} className="gap-2">
             <Download className="h-4 w-4" />
             Exportar Excel
@@ -249,6 +394,10 @@ export default function Orders() {
             )}
           </span>
           <span>
+            <span className="font-semibold text-gray-900">{periodProductCount}</span>
+            <span className="text-gray-500"> productos</span>
+          </span>
+          <span>
             Total: <span className="font-semibold text-gray-900">{formatCurrency(periodTotal)}</span>
           </span>
         </div>
@@ -259,7 +408,14 @@ export default function Orders() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]">ID</TableHead>
+              <TableHead className="w-[40px]">
+                <input
+                  type="checkbox"
+                  checked={filteredOrders.length > 0 && selectedIds.size === filteredOrders.length}
+                  onChange={toggleAll}
+                  className="rounded border-gray-300"
+                />
+              </TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Fecha</TableHead>
               <TableHead>Estado</TableHead>
@@ -281,7 +437,14 @@ export default function Orders() {
             ) : (
               filteredOrders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium text-xs font-mono">{order.id.slice(0, 8)}...</TableCell>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(order.id)}
+                      onChange={() => toggleSelect(order.id)}
+                      className="rounded border-gray-300"
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-medium">{order.user?.name || 'Usuario'}</span>
@@ -313,6 +476,8 @@ export default function Orders() {
                         ? 'bg-green-100 text-green-700'
                         : order.paymentMethod === 'CASH_ON_DELIVERY'
                         ? 'bg-orange-100 text-orange-700'
+                        : order.paymentMethod === 'MERCADO_LIBRE'
+                        ? 'bg-yellow-100 text-yellow-800'
                         : 'bg-purple-100 text-purple-700'
                     }`}>
                       {PAYMENT_LABELS[order.paymentMethod || ''] || order.paymentMethod || 'Web'}

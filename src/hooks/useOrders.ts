@@ -17,7 +17,7 @@ export interface CreateManualOrderPayload {
   city: string;
   state: string;
   items: ManualOrderItem[];
-  paymentMethod?: 'WOMPI' | 'CASH_ON_DELIVERY' | 'WHATSAPP';
+  paymentMethod?: 'WOMPI' | 'CASH_ON_DELIVERY' | 'WHATSAPP' | 'MERCADO_LIBRE';
   shippingCost?: number;
   notes?: string;
 }

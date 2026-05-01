@@ -1,6 +1,6 @@
 export type Role = 'USER' | 'ADMIN' | 'B2B';
 
-export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'PROCESSING' | 'PACKED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 export interface Address {
   id: string;
@@ -144,6 +144,27 @@ export interface ShippingRate {
   state?: string;
   city?: string;
   price: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExpenseCategory =
+  | 'FILAMENT'
+  | 'PACKAGING'
+  | 'ADVERTISING'
+  | 'SHIPPING'
+  | 'TOOLS'
+  | 'MAINTENANCE'
+  | 'SOFTWARE'
+  | 'OTHER';
+
+export interface Expense {
+  id: string;
+  description: string;
+  amount: number;
+  category: ExpenseCategory;
+  date: string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
