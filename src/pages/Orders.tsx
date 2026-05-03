@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer } from "lucide-react";
+import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X } from "lucide-react";
 import { jsPDF } from 'jspdf';
 import { useState, useMemo } from 'react';
 import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
@@ -85,6 +85,7 @@ export default function Orders() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const toggleSelect = (id: string) => {
@@ -104,17 +105,38 @@ export default function Orders() {
   };
 
   const filteredOrders = useMemo(() => {
-    if (dateFilter === 'all') return orders;
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const phoneDigits = normalizedQuery.replace(/\D/g, '');
+
     return orders.filter((order) => {
-      const date = parseISO(order.createdAt);
-      if (dateFilter === 'today') return isToday(date);
-      if (dateFilter === 'yesterday') return isYesterday(date);
-      if (dateFilter === 'week') return isThisWeek(date, { locale: es });
-      if (dateFilter === 'month') return isThisMonth(date);
-      if (dateFilter === 'year') return isThisYear(date);
+      // Date filter
+      if (dateFilter !== 'all') {
+        const date = parseISO(order.createdAt);
+        const dateMatch =
+          (dateFilter === 'today' && isToday(date)) ||
+          (dateFilter === 'yesterday' && isYesterday(date)) ||
+          (dateFilter === 'week' && isThisWeek(date, { locale: es })) ||
+          (dateFilter === 'month' && isThisMonth(date)) ||
+          (dateFilter === 'year' && isThisYear(date));
+        if (!dateMatch) return false;
+      }
+
+      // Search filter (name or phone)
+      if (normalizedQuery) {
+        const name = (order.user?.name || '').toLowerCase();
+        const addr = typeof order.shippingAddress === 'string'
+          ? (() => { try { return JSON.parse(order.shippingAddress); } catch { return {}; } })()
+          : (order.shippingAddress || {});
+        const phone = (addr.phone || '').replace(/\D/g, '');
+
+        const nameMatch = name.includes(normalizedQuery);
+        const phoneMatch = phoneDigits.length > 0 && phone.includes(phoneDigits);
+        if (!nameMatch && !phoneMatch) return false;
+      }
+
       return true;
     });
-  }, [orders, dateFilter]);
+  }, [orders, dateFilter, searchQuery]);
 
   // Totales del período filtrado (excluye CANCELLED)
   const activeOrders = useMemo(
@@ -366,6 +388,27 @@ export default function Orders() {
             Nueva Orden
           </Button>
         </div>
+      </div>
+
+      {/* ── BUSCADOR ── */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Buscar por nombre o teléfono..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-100"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="h-3.5 w-3.5 text-gray-400" />
+          </button>
+        )}
       </div>
 
       {/* ── FILTROS DE FECHA ── */}
