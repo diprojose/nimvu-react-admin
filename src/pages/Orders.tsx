@@ -372,6 +372,29 @@ export default function Orders() {
       {/* ── HEADER ── */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold">Órdenes</h1>
+
+        <div className="flex-1 flex justify-center min-w-[260px]">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o teléfono..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-100"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-3.5 w-3.5 text-gray-400" />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="flex gap-2">
           {selectedIds.size > 0 && (
             <Button variant="outline" onClick={handlePrintLabels} className="gap-2">
@@ -388,27 +411,6 @@ export default function Orders() {
             Nueva Orden
           </Button>
         </div>
-      </div>
-
-      {/* ── BUSCADOR ── */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Buscar por nombre o teléfono..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-100"
-            aria-label="Limpiar búsqueda"
-          >
-            <X className="h-3.5 w-3.5 text-gray-400" />
-          </button>
-        )}
       </div>
 
       {/* ── FILTROS DE FECHA ── */}

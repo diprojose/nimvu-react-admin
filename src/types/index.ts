@@ -58,6 +58,7 @@ export interface Product {
   discounts?: Discount[];
   b2bPrices?: B2BPrice[];
   isB2BOnly?: boolean;
+  isActive?: boolean;
 }
 
 export interface B2BPrice {

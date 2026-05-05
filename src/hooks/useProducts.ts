@@ -6,7 +6,7 @@ export function useProducts() {
   return useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: async () => {
-      const { data } = await api.get('/products');
+      const { data } = await api.get('/products', { params: { includeInactive: 'true' } });
       return data;
     },
   });

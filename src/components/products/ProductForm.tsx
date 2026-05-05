@@ -49,6 +49,7 @@ const productSchema = z.object({
   longDescription: z.string().optional(),
   categoryId: z.string().optional(),
   isB2BOnly: z.boolean().default(false),
+  isActive: z.boolean().default(true),
   variants: z.array(variantSchema).default([]),
 });
 
@@ -74,6 +75,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
       longDescription: '',
       categoryId: '',
       isB2BOnly: false,
+      isActive: true,
       variants: [],
     },
   });
@@ -99,6 +101,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         longDescription: initialData.longDescription || '',
         categoryId: initialData.categoryId || initialData.category?.id || '',
         isB2BOnly: initialData.isB2BOnly || false,
+        isActive: initialData.isActive ?? true,
         variants: initialData.variants?.map(v => ({
           id: v.id,
           name: v.name,
@@ -279,6 +282,27 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
                 <FormLabel>Solo para B2B</FormLabel>
                 <p className="text-sm text-gray-500">
                   Ocultar de la tienda principal y mostrar expuesto solamente en el catálogo B2B.
+                </p>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="isActive"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm col-span-full">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Producto Activo</FormLabel>
+                <p className="text-sm text-gray-500">
+                  Si lo desactivas, no aparecerá en la tienda. Útil para ocultar productos sin tener que eliminarlos.
                 </p>
               </div>
             </FormItem>
