@@ -3,6 +3,8 @@ import { Layout } from '@/components/layout/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Products';
 import Categories from '@/pages/Categories';
+import Universes from '@/pages/Universes';
+import Banners from '@/pages/Banners';
 import Orders from '@/pages/Orders';
 import Users from '@/pages/Users';
 import Collections from '@/pages/Collections';
@@ -20,6 +22,8 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="products" element={<Products />} />
+          <Route path="universes" element={<Universes />} />
+          <Route path="banners" element={<Banners />} />
           <Route path="categories" element={<Categories />} />
           <Route path="collections" element={<Collections />} />
           <Route path="discounts" element={<Discounts />} />

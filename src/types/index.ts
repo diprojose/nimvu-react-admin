@@ -31,9 +31,54 @@ export interface User {
 export interface Category {
   id: string;
   name: string;
+  slug?: string;
   description?: string;
   image?: string;
   order?: number;
+  universeId?: string;
+  universe?: Universe;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { products: number };
+}
+
+export interface Universe {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  order: number;
+  isActive: boolean;
+  comingSoon: boolean;
+  categories?: Category[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Banner {
+  id: string;
+  universeId?: string | null;
+  universe?: Universe | null;
+  image: string;
+  mobileImage?: string | null;
+  badge?: string | null;
+  title: string;
+  subtitle?: string | null;
+  ctaText?: string | null;
+  ctaHref?: string | null;
+  textColor?: string | null;
+  badgeColor?: string | null;
+  titleColor?: string | null;
+  subtitleColor?: string | null;
+  accentLineColor?: string | null;
+  ctaBgColor?: string | null;
+  ctaTextColor?: string | null;
+  order: number;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +96,8 @@ export interface Product {
   longDescription?: string;
   categoryId?: string;
   category?: Category;
+  universeId?: string;
+  universe?: Universe;
   createdAt: string;
   updatedAt: string;
   variants?: Variant[];

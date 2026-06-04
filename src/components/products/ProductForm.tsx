@@ -27,6 +27,7 @@ import { Trash, Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { useCategories } from '@/hooks/useCategories';
+import { useUniverses } from '@/hooks/useUniverses';
 
 const variantSchema = z.object({
   id: z.string().optional(),
@@ -47,6 +48,7 @@ const productSchema = z.object({
   width: z.coerce.number().min(0).optional(),
   length: z.coerce.number().min(0).optional(),
   longDescription: z.string().optional(),
+  universeId: z.string().min(1, 'El universo es requerido'),
   categoryId: z.string().optional(),
   isB2BOnly: z.boolean().default(false),
   isActive: z.boolean().default(true),
@@ -73,6 +75,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
       width: 0,
       length: 0,
       longDescription: '',
+      universeId: '',
       categoryId: '',
       isB2BOnly: false,
       isActive: true,
@@ -81,6 +84,34 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
   });
 
   const { data: categories } = useCategories();
+  const { data: universes } = useUniverses();
+
+  const watchedUniverseId = form.watch('universeId');
+
+  // Default to hogar when creating a new product and universes have loaded.
+  useEffect(() => {
+    if (initialData) return;
+    if (form.getValues('universeId')) return;
+    const hogar = universes?.find((u) => u.slug === 'hogar');
+    if (hogar) {
+      form.setValue('universeId', hogar.id);
+    }
+  }, [universes, initialData, form]);
+
+  // If the selected universe changes, clear category when it no longer belongs.
+  useEffect(() => {
+    if (!watchedUniverseId || !categories) return;
+    const currentCategoryId = form.getValues('categoryId');
+    if (!currentCategoryId) return;
+    const cat = categories.find((c) => c.id === currentCategoryId);
+    if (cat && cat.universeId !== watchedUniverseId) {
+      form.setValue('categoryId', '');
+    }
+  }, [watchedUniverseId, categories, form]);
+
+  const filteredCategories = (categories || []).filter(
+    (c) => !watchedUniverseId || c.universeId === watchedUniverseId,
+  );
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -99,6 +130,11 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         width: initialData.width || 0,
         length: initialData.length || 0,
         longDescription: initialData.longDescription || '',
+        universeId:
+          initialData.universeId ||
+          initialData.universe?.id ||
+          initialData.category?.universeId ||
+          '',
         categoryId: initialData.categoryId || initialData.category?.id || '',
         isB2BOnly: initialData.isB2BOnly || false,
         isActive: initialData.isActive ?? true,
@@ -122,6 +158,7 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
         width: 0,
         length: 0,
         longDescription: '',
+        universeId: '',
         categoryId: '',
         isB2BOnly: false,
         variants: [],
@@ -180,34 +217,71 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="categoryId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Categoría</FormLabel>
-              <Select
-                key={field.value || 'empty'}
-                onValueChange={field.onChange}
-                value={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar categoría" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {categories?.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="universeId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Universo</FormLabel>
+                <Select
+                  key={field.value || 'empty-universe'}
+                  onValueChange={field.onChange}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar universo" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {universes?.map((universe) => (
+                      <SelectItem key={universe.id} value={universe.id}>
+                        {universe.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="categoryId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Categoría</FormLabel>
+                <Select
+                  key={field.value || 'empty-category'}
+                  onValueChange={field.onChange}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={watchedUniverseId ? 'Seleccionar categoría' : 'Elegí primero un universo'} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {filteredCategories.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Sin categorías en este universo
+                      </div>
+                    ) : (
+                      filteredCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="grid grid-cols-3 gap-4">
           <FormField

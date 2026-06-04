@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/hooks/useCategories';
+import { useUniverses } from '@/hooks/useUniverses';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -18,6 +19,14 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -55,6 +64,22 @@ function SortableTableRow({ category, openEditModal, handleDelete }: { category:
         </div>
       </TableCell>
       <TableCell className="font-medium">{category.name}</TableCell>
+      <TableCell>
+        {category.universe ? (
+          <Badge
+            variant="outline"
+            style={{
+              backgroundColor: category.universe.secondaryColor || undefined,
+              borderColor: category.universe.primaryColor || undefined,
+              color: category.universe.accentColor || undefined,
+            }}
+          >
+            {category.universe.name}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">Sin universo</span>
+        )}
+      </TableCell>
       <TableCell>{category.description}</TableCell>
       <TableCell>{category.order || 0}</TableCell>
       <TableCell className="text-right space-x-2">
@@ -74,26 +99,35 @@ const categorySchema = z.object({
   description: z.string().optional(),
   image: z.string().optional(),
   order: z.number().optional(),
+  universeId: z.string().optional(),
 });
 
 type CategoryFormValues = z.infer<typeof categorySchema>;
 
 export default function Categories() {
   const { data: categories, isLoading, error } = useCategories();
+  const { data: universes } = useUniverses();
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [localCategories, setLocalCategories] = useState<Category[]>([]);
+  const [universeFilter, setUniverseFilter] = useState<string>('all');
 
-  // Sync server data to local state for optimistic dragging
+  // Sync server data to local state for optimistic dragging, applying universe filter
   useEffect(() => {
     if (categories) {
-      const sorted = [...categories].sort((a, b) => (a.order || 0) - (b.order || 0));
+      const filtered =
+        universeFilter === 'all'
+          ? categories
+          : universeFilter === 'none'
+          ? categories.filter((c) => !c.universeId)
+          : categories.filter((c) => c.universeId === universeFilter);
+      const sorted = [...filtered].sort((a, b) => (a.order || 0) - (b.order || 0));
       setLocalCategories(sorted);
     }
-  }, [categories]);
+  }, [categories, universeFilter]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -134,6 +168,7 @@ export default function Categories() {
       description: '',
       image: '',
       order: 0,
+      universeId: undefined,
     },
   });
 
@@ -163,6 +198,7 @@ export default function Categories() {
       description: category.description || '',
       image: category.image || '',
       order: category.order || 0,
+      universeId: category.universeId,
     });
     setIsModalOpen(true);
   };
@@ -184,7 +220,7 @@ export default function Categories() {
           setIsModalOpen(open);
           if (!open) {
             setEditingCategory(null);
-            form.reset({ name: '', description: '', image: '', order: 0 });
+            form.reset({ name: '', description: '', image: '', order: 0, universeId: undefined });
           }
         }}>
           <DialogTrigger asChild>
@@ -226,15 +262,45 @@ export default function Categories() {
                 />
                 <FormField
                   control={form.control}
+                  name="universeId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Universo</FormLabel>
+                      <Select
+                        value={field.value || ''}
+                        onValueChange={(value) =>
+                          field.onChange(value === '__none__' ? undefined : value)
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un universo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin universo</SelectItem>
+                          {universes?.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="order"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Orden</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="0" 
-                          {...field} 
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
                           onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                         />
                       </FormControl>
@@ -253,6 +319,24 @@ export default function Categories() {
         </Dialog>
       </div>
 
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Filtrar por universo:</span>
+        <Select value={universeFilter} onValueChange={setUniverseFilter}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="none">Sin universo</SelectItem>
+            {universes?.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {u.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="rounded-md border">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <Table>
@@ -260,6 +344,7 @@ export default function Categories() {
               <TableRow>
                 <TableHead className="w-10"></TableHead>
                 <TableHead>Nombre</TableHead>
+                <TableHead>Universo</TableHead>
                 <TableHead>Descripción</TableHead>
                 <TableHead>Orden</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
