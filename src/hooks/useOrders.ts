@@ -35,12 +35,19 @@ export function useOrders(status?: OrderStatus) {
   });
 }
 
+export interface UpdateOrderPayload {
+  id: string;
+  status?: string;
+  shippingCarrier?: 'ENVIA' | 'SERVIENTREGA' | null;
+  trackingNumber?: string | null;
+}
+
 export function useUpdateOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { data } = await api.patch(`/orders/${id}`, { status });
+    mutationFn: async ({ id, ...payload }: UpdateOrderPayload) => {
+      const { data } = await api.patch(`/orders/${id}`, payload);
       return data;
     },
     onSuccess: () => {

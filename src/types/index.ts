@@ -93,8 +93,12 @@ export interface Order {
   updatedAt: string;
   shippingAddress?: any; // Json type in Prisma, using any for now or strictly typed if structure is known
   recoveryEmailSent?: boolean;
+  shippingCarrier?: ShippingCarrier | null;
+  trackingNumber?: string | null;
   items?: OrderItem[];
 }
+
+export type ShippingCarrier = 'ENVIA' | 'SERVIENTREGA';
 
 export interface OrderItem {
   id: string;

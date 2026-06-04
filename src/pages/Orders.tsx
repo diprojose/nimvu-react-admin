@@ -28,15 +28,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X } from "lucide-react";
+import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X, Truck, MessageCircle, Check } from "lucide-react";
 import { jsPDF } from 'jspdf';
 import { useState, useMemo } from 'react';
 import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
 import ManualOrderForm from '@/components/orders/ManualOrderForm';
 import * as XLSX from 'xlsx';
 
-import type { OrderStatus } from '@/types';
-import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, parseISO } from 'date-fns';
+import type { OrderStatus, ShippingCarrier } from '@/types';
+import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -64,7 +64,37 @@ const PAYMENT_LABELS: Record<string, string> = {
   MERCADO_LIBRE: 'Mercado Libre',
 };
 
-type DateFilter = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year';
+const CARRIER_LABELS: Record<ShippingCarrier, string> = {
+  ENVIA: 'Envía',
+  SERVIENTREGA: 'Servientrega',
+};
+
+const CARRIER_TRACKING_URL: Record<ShippingCarrier, string> = {
+  ENVIA: 'https://envia.co/',
+  SERVIENTREGA: 'https://www.servientrega.com/wps/portal/rastreo-envio',
+};
+
+const buildWhatsappMessage = (
+  name: string | undefined,
+  orderId: string,
+  carrier: ShippingCarrier,
+  tracking: string,
+) => {
+  const firstName = (name || '').split(' ')[0] || 'Hola';
+  return `¡Hola ${firstName}! 👋
+
+Tu pedido #${orderId.slice(0, 8)} de Nimvu ya está en camino 🚚
+
+📦 Transportadora: ${CARRIER_LABELS[carrier]}
+🔢 Número de guía: ${tracking}
+
+Puedes hacer seguimiento aquí:
+${CARRIER_TRACKING_URL[carrier]}
+
+¡Gracias por elegir Nimvu! 💛`;
+};
+
+type DateFilter = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year' | 'custom';
 
 const DATE_FILTER_LABELS: Record<DateFilter, string> = {
   all: 'Todo',
@@ -73,6 +103,7 @@ const DATE_FILTER_LABELS: Record<DateFilter, string> = {
   week: 'Esta semana',
   month: 'Este mes',
   year: 'Este año',
+  custom: 'Personalizado',
 };
 
 export default function Orders() {
@@ -84,7 +115,13 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [shippingOrder, setShippingOrder] = useState<any>(null);
+  const [carrierInput, setCarrierInput] = useState<ShippingCarrier | ''>('');
+  const [trackingInput, setTrackingInput] = useState('');
+  const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -112,12 +149,23 @@ export default function Orders() {
       // Date filter
       if (dateFilter !== 'all') {
         const date = parseISO(order.createdAt);
-        const dateMatch =
-          (dateFilter === 'today' && isToday(date)) ||
-          (dateFilter === 'yesterday' && isYesterday(date)) ||
-          (dateFilter === 'week' && isThisWeek(date, { locale: es })) ||
-          (dateFilter === 'month' && isThisMonth(date)) ||
-          (dateFilter === 'year' && isThisYear(date));
+        let dateMatch = false;
+        if (dateFilter === 'custom') {
+          if (customStart && customEnd) {
+            const start = startOfDay(parseISO(customStart));
+            const end = endOfDay(parseISO(customEnd));
+            dateMatch = isWithinInterval(date, { start, end });
+          } else {
+            dateMatch = true;
+          }
+        } else {
+          dateMatch =
+            (dateFilter === 'today' && isToday(date)) ||
+            (dateFilter === 'yesterday' && isYesterday(date)) ||
+            (dateFilter === 'week' && isThisWeek(date, { locale: es })) ||
+            (dateFilter === 'month' && isThisMonth(date)) ||
+            (dateFilter === 'year' && isThisYear(date));
+        }
         if (!dateMatch) return false;
       }
 
@@ -136,7 +184,7 @@ export default function Orders() {
 
       return true;
     });
-  }, [orders, dateFilter, searchQuery]);
+  }, [orders, dateFilter, customStart, customEnd, searchQuery]);
 
   // Totales del período filtrado (excluye CANCELLED)
   const activeOrders = useMemo(
@@ -168,6 +216,85 @@ export default function Orders() {
   const navigateDetails = (order: any) => {
     setSelectedOrder(order);
     setIsDetailOpen(true);
+  };
+
+  const openShipping = (order: any) => {
+    setShippingOrder(order);
+    setCarrierInput((order.shippingCarrier as ShippingCarrier) || '');
+    setTrackingInput(order.trackingNumber || '');
+  };
+
+  const closeShipping = () => {
+    setShippingOrder(null);
+    setCarrierInput('');
+    setTrackingInput('');
+    setCopiedWhatsapp(false);
+  };
+
+  const getCustomerPhone = (order: any): string => {
+    const addr = typeof order?.shippingAddress === 'string'
+      ? (() => { try { return JSON.parse(order.shippingAddress); } catch { return {}; } })()
+      : (order?.shippingAddress || {});
+    return (addr.phone || '').toString();
+  };
+
+  const buildWaLink = (order: any, message: string) => {
+    let phone = getCustomerPhone(order).replace(/\D/g, '');
+    if (!phone) return null;
+    if (phone.length === 10) phone = `57${phone}`;
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const handleCopyWhatsapp = async () => {
+    if (!shippingOrder || !carrierInput || !trackingInput.trim()) return;
+    const msg = buildWhatsappMessage(
+      shippingOrder.user?.name,
+      shippingOrder.id,
+      carrierInput,
+      trackingInput.trim(),
+    );
+    try {
+      await navigator.clipboard.writeText(msg);
+      setCopiedWhatsapp(true);
+      setTimeout(() => setCopiedWhatsapp(false), 2000);
+    } catch {
+      alert('No se pudo copiar al portapapeles.');
+    }
+  };
+
+  const handleOpenWhatsapp = () => {
+    if (!shippingOrder || !carrierInput || !trackingInput.trim()) return;
+    const msg = buildWhatsappMessage(
+      shippingOrder.user?.name,
+      shippingOrder.id,
+      carrierInput,
+      trackingInput.trim(),
+    );
+    const link = buildWaLink(shippingOrder, msg);
+    if (!link) {
+      alert('Esta orden no tiene un teléfono válido. Usa "Copiar mensaje" y pégalo en WhatsApp.');
+      return;
+    }
+    window.open(link, '_blank');
+  };
+
+  const handleSaveShipping = () => {
+    if (!shippingOrder) return;
+    if (!carrierInput || !trackingInput.trim()) {
+      alert('Selecciona transportadora y escribe el número de guía.');
+      return;
+    }
+    updateOrder.mutate(
+      {
+        id: shippingOrder.id,
+        shippingCarrier: carrierInput,
+        trackingNumber: trackingInput.trim(),
+      },
+      {
+        onSuccess: () => closeShipping(),
+        onError: () => alert('Error al guardar el envío. Intenta de nuevo.'),
+      },
+    );
   };
 
   const formatCurrency = (amount: number) =>
@@ -333,6 +460,8 @@ export default function Orders() {
           `${i.product?.name || 'Producto'} x${i.quantity}`
         ).join(' | ') || '',
         'Envío': addr?.shippingCost || 0,
+        'Transportadora': order.shippingCarrier ? CARRIER_LABELS[order.shippingCarrier as ShippingCarrier] : '',
+        'Guía': order.trackingNumber || '',
         'Total (COP)': order.total,
       };
     });
@@ -343,7 +472,7 @@ export default function Orders() {
     ws['!cols'] = [
       { wch: 10 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
       { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
-      { wch: 35 }, { wch: 20 }, { wch: 50 }, { wch: 12 }, { wch: 14 },
+      { wch: 35 }, { wch: 20 }, { wch: 50 }, { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -428,6 +557,35 @@ export default function Orders() {
             {DATE_FILTER_LABELS[key]}
           </button>
         ))}
+
+        {dateFilter === 'custom' && (
+          <div className="flex items-center gap-2 ml-1">
+            <input
+              type="date"
+              value={customStart}
+              max={customEnd || undefined}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="px-2 py-1 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+            />
+            <span className="text-sm text-gray-500">a</span>
+            <input
+              type="date"
+              value={customEnd}
+              min={customStart || undefined}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="px-2 py-1 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+            />
+            {(customStart || customEnd) && (
+              <button
+                onClick={() => { setCustomStart(''); setCustomEnd(''); }}
+                className="p-1 rounded hover:bg-gray-100"
+                aria-label="Limpiar rango"
+              >
+                <X className="h-3.5 w-3.5 text-gray-400" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Resumen del período */}
         <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
@@ -555,6 +713,10 @@ export default function Orders() {
                         <DropdownMenuItem onClick={() => navigateDetails(order)}>
                           <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openShipping(order)}>
+                          <Truck className="mr-2 h-4 w-4" />
+                          {order.trackingNumber ? 'Editar envío' : 'Agregar envío'}
+                        </DropdownMenuItem>
                         {order.status === 'PENDING' && order.paymentMethod === 'WOMPI' && (
                           <DropdownMenuItem
                             onClick={() =>
@@ -642,6 +804,8 @@ export default function Orders() {
                     <p><strong>ZIP:</strong> {selectedOrder.shippingAddress?.postal_code || selectedOrder.shippingAddress?.zip || 'N/A'}</p>
                     <p><strong>Canal:</strong> {PAYMENT_LABELS[selectedOrder.paymentMethod || ''] || selectedOrder.paymentMethod || 'N/A'}</p>
                     <p><strong>Ref. Pago:</strong> <span className="font-mono">{selectedOrder.paymentId || 'N/A'}</span></p>
+                    <p><strong>Transportadora:</strong> {selectedOrder.shippingCarrier ? CARRIER_LABELS[selectedOrder.shippingCarrier as ShippingCarrier] : 'N/A'}</p>
+                    <p><strong>Guía:</strong> <span className="font-mono">{selectedOrder.trackingNumber || 'N/A'}</span></p>
                     {selectedOrder.shippingAddress?.notes && (
                       <p><strong>Notas:</strong> {selectedOrder.shippingAddress.notes}</p>
                     )}
@@ -710,6 +874,95 @@ export default function Orders() {
 
       {/* ── MODAL NUEVA ORDEN MANUAL ── */}
       <ManualOrderForm isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
+
+      {/* ── MODAL AGREGAR/EDITAR ENVÍO ── */}
+      <Dialog open={!!shippingOrder} onOpenChange={(open) => { if (!open) closeShipping(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {shippingOrder?.trackingNumber ? 'Editar envío' : 'Agregar envío'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Transportadora</label>
+              <Select
+                value={carrierInput || undefined}
+                onValueChange={(v) => setCarrierInput(v as ShippingCarrier)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecciona transportadora" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(CARRIER_LABELS) as ShippingCarrier[]).map((key) => (
+                    <SelectItem key={key} value={key}>{CARRIER_LABELS[key]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Número de guía</label>
+              <input
+                type="text"
+                value={trackingInput}
+                onChange={(e) => setTrackingInput(e.target.value)}
+                placeholder="Ej. 1234567890"
+                className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              Se enviará un correo al cliente con el número de guía y el enlace de seguimiento al guardar (si cambia).
+            </p>
+
+            {carrierInput && trackingInput.trim() && (
+              <div className="border-t pt-3">
+                <p className="text-xs font-medium text-gray-700 mb-2">Mensaje para WhatsApp</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCopyWhatsapp}
+                    className="gap-2"
+                  >
+                    {copiedWhatsapp ? (
+                      <>
+                        <Check className="h-4 w-4 text-green-600" />
+                        Copiado
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copiar mensaje
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleOpenWhatsapp}
+                    className="gap-2 bg-green-600 text-white hover:bg-green-700"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Abrir WhatsApp
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={closeShipping} disabled={updateOrder.isPending}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveShipping}
+                disabled={updateOrder.isPending}
+                className="bg-black text-white hover:bg-gray-800"
+              >
+                {updateOrder.isPending ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
