@@ -64,32 +64,10 @@ export function BannerForm({
 }: BannerFormProps) {
   const { data: universes } = useUniverses();
 
-  const form = useForm<BannerFormValues>({
-    resolver: zodResolver(bannerSchema) as any,
-    defaultValues: {
-      universeId: defaultUniverseId,
-      image: '',
-      mobileImage: '',
-      badge: '',
-      title: '',
-      subtitle: '',
-      ctaText: '',
-      ctaHref: '',
-      textColor: '#FFFFFF',
-      badgeColor: '#B55934',
-      titleColor: '#111827',
-      subtitleColor: '#374151',
-      accentLineColor: '#B55934',
-      ctaBgColor: '#B55934',
-      ctaTextColor: '#FFFFFF',
-      order: 0,
-      isActive: true,
-    },
-  });
-
-  useEffect(() => {
-    if (initialData) {
-      form.reset({
+  // Seed defaults from initialData when editing so the form is correct on first
+  // mount (avoids the Select flashing to "Home" before a useEffect resets it).
+  const initialValues: BannerFormValues = initialData
+    ? {
         universeId: initialData.universeId ?? undefined,
         image: initialData.image,
         mobileImage: initialData.mobileImage ?? '',
@@ -107,9 +85,38 @@ export function BannerForm({
         ctaTextColor: initialData.ctaTextColor ?? '#FFFFFF',
         order: initialData.order,
         isActive: initialData.isActive,
-      });
-    }
-  }, [initialData, form]);
+      }
+    : {
+        universeId: defaultUniverseId,
+        image: '',
+        mobileImage: '',
+        badge: '',
+        title: '',
+        subtitle: '',
+        ctaText: '',
+        ctaHref: '',
+        textColor: '#FFFFFF',
+        badgeColor: '#B55934',
+        titleColor: '#111827',
+        subtitleColor: '#374151',
+        accentLineColor: '#B55934',
+        ctaBgColor: '#B55934',
+        ctaTextColor: '#FFFFFF',
+        order: 0,
+        isActive: true,
+      };
+
+  const form = useForm<BannerFormValues>({
+    resolver: zodResolver(bannerSchema) as any,
+    defaultValues: initialValues,
+  });
+
+  // If the parent swaps initialData while this form is mounted (rare with the
+  // current dialog flow, but safe to keep), re-sync the form values.
+  useEffect(() => {
+    form.reset(initialValues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData?.id]);
 
   const handleSubmit = (values: BannerFormValues) => {
     onSubmit({
@@ -131,6 +138,7 @@ export function BannerForm({
             <FormItem>
               <FormLabel>Universo</FormLabel>
               <Select
+                key={field.value || HOME_VALUE}
                 value={field.value || HOME_VALUE}
                 onValueChange={(v) => field.onChange(v === HOME_VALUE ? undefined : v)}
               >
