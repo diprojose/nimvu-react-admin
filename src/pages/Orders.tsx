@@ -367,7 +367,7 @@ export default function Orders() {
     const LABEL_W = 283;
     const LABEL_H = 198;
     const MARGIN = 14;
-    const LOGO_H = 22;
+    const LOGO_H = 36;
     // Page: Letter portrait to fit 2 columns x 3 rows
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
     const pageW = doc.internal.pageSize.getWidth();
