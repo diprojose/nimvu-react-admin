@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare global { interface Window { dataLayer: any[] } }
+declare global { interface Window { dataLayer: unknown[] } }
 
 import { useState } from 'react';
+import { AxiosError } from 'axios';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,7 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
   // Pago
   const [paymentMethod, setPaymentMethod] = useState<'WHATSAPP' | 'CASH_ON_DELIVERY' | 'WOMPI' | 'MERCADO_LIBRE'>('WHATSAPP');
   const [shippingCost, setShippingCost] = useState(0);
+  const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState('');
 
   const [error, setError] = useState<string | null>(null);
@@ -86,13 +87,17 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
   };
 
   const subtotal = lineItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const total = subtotal + shippingCost;
+  const preDiscountTotal = subtotal + shippingCost;
+  // Clamp so the discount can never push the total below zero, even if items
+  // are removed after a discount was entered.
+  const effectiveDiscount = Math.min(Math.max(0, discount), preDiscountTotal);
+  const total = preDiscountTotal - effectiveDiscount;
 
   const handleReset = () => {
     setCustomerName(''); setCustomerPhone(''); setCustomerEmail('');
     setAddress(''); setCity(''); setState('');
     setLineItems([]); setProductSearch('');
-    setPaymentMethod('WHATSAPP'); setShippingCost(0); setNotes('');
+    setPaymentMethod('WHATSAPP'); setShippingCost(0); setDiscount(0); setNotes('');
     setError(null);
   };
 
@@ -130,6 +135,7 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
         })),
         paymentMethod,
         shippingCost,
+        discount: effectiveDiscount,
         notes: notes.trim() || undefined,
       });
 
@@ -168,8 +174,9 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
       });
 
       handleClose();
-    } catch (e: any) {
-      const msg = e?.response?.data?.message;
+    } catch (e: unknown) {
+      const data = e instanceof AxiosError ? (e.response?.data as { message?: string | string[] } | undefined) : undefined;
+      const msg = data?.message;
       setError(Array.isArray(msg) ? msg.join(', ') : (msg || 'Error al crear la orden.'));
     }
   };
@@ -362,19 +369,19 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
             <h3 className="font-semibold text-sm uppercase tracking-wide text-gray-500 border-b pb-1">
               Pago y Envío
             </h3>
+            <div className="space-y-1">
+              <Label>Método de pago</Label>
+              <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as typeof paymentMethod)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                  <SelectItem value="CASH_ON_DELIVERY">Contra Entrega</SelectItem>
+                  <SelectItem value="WOMPI">Wompi</SelectItem>
+                  <SelectItem value="MERCADO_LIBRE">Mercado Libre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Método de pago</Label>
-                <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-                    <SelectItem value="CASH_ON_DELIVERY">Contra Entrega</SelectItem>
-                    <SelectItem value="WOMPI">Wompi</SelectItem>
-                    <SelectItem value="MERCADO_LIBRE">Mercado Libre</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-1">
                 <Label>Costo de envío</Label>
                 <Input
@@ -382,6 +389,16 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
                   min={0}
                   value={shippingCost}
                   onChange={(e) => setShippingCost(Math.max(0, Number(e.target.value)))}
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Descuento <span className="text-gray-400 text-xs">(opcional)</span></Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={discount}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
                   placeholder="0"
                 />
               </div>
@@ -402,6 +419,12 @@ export default function ManualOrderForm({ isOpen, onClose }: Props) {
               <span>Envío</span>
               <span>{formatCurrency(shippingCost)}</span>
             </div>
+            {effectiveDiscount > 0 && (
+              <div className="flex justify-between text-emerald-600">
+                <span>Descuento</span>
+                <span>−{formatCurrency(effectiveDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-base pt-1 border-t mt-1">
               <span>Total</span>
               <span>{formatCurrency(total)}</span>

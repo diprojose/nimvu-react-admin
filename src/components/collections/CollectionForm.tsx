@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,7 @@ interface CollectionFormProps {
 
 export function CollectionForm({ initialData, onSubmit, isLoading }: CollectionFormProps) {
   const form = useForm<CollectionFormValues>({
-    resolver: zodResolver(collectionSchema) as any,
+    resolver: zodResolver(collectionSchema) as Resolver<CollectionFormValues>,
     defaultValues: {
       name: '',
       description: '',

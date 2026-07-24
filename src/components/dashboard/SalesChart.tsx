@@ -1,5 +1,7 @@
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChartTooltip } from './ChartTooltip';
+import { REVENUE_COLOR, formatCompactCurrency } from '@/lib/dashboard';
 
 interface SalesData {
   name: string;
@@ -8,48 +10,43 @@ interface SalesData {
 
 interface SalesChartProps {
   data: SalesData[];
+  year: number;
 }
 
-export function SalesChart({ data }: SalesChartProps) {
+export function SalesChart({ data, year }: SalesChartProps) {
   return (
-    <Card className="col-span-4">
+    <Card className="col-span-full lg:col-span-4">
       <CardHeader>
-        <CardTitle>Ventas Mensuales</CardTitle>
-        <CardDescription>
-          Resumen de ventas para el año actual
-        </CardDescription>
+        <CardTitle className="text-lg">Ventas Mensuales</CardTitle>
+        <CardDescription>Ingresos por mes durante {year}</CardDescription>
       </CardHeader>
       <CardContent className="pl-2">
-        <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
             <XAxis
               dataKey="name"
-              stroke="#888888"
+              stroke="hsl(var(--muted-foreground))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              stroke="#888888"
+              stroke="hsl(var(--muted-foreground))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(value) => `$${value}`}
+              width={52}
+              tickFormatter={formatCompactCurrency}
             />
             <Tooltip
-              formatter={(value: any) => [`$${value}`, 'Ventas']}
-              cursor={{ fill: 'transparent' }}
+              content={<ChartTooltip format="currency" />}
+              cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
             />
-            <Bar
-              dataKey="total"
-              fill="currentColor"
-              radius={[4, 4, 0, 0]}
-              className="fill-primary"
-            />
+            <Bar dataKey="total" name="Ingresos" fill={REVENUE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
-  )
+  );
 }

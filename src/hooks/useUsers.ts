@@ -2,6 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import type { User, Role } from '@/types';
 
+export interface CreateUserInput {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+}
+
 export function useUsers() {
   return useQuery<User[]>({
     queryKey: ['users'],
@@ -30,7 +37,7 @@ export function useCreateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userData: any) => {
+    mutationFn: async (userData: CreateUserInput) => {
       const { data } = await api.post('/users', userData);
       return data;
     },

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCreateUser } from '@/hooks/useUsers';
+import type { Role } from '@/types';
 
 interface CreateUserModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('USER');
+  const [role, setRole] = useState<Role>('USER');
   const [copied, setCopied] = useState(false);
 
   const { mutate: createUser, isPending } = useCreateUser();
@@ -101,7 +102,7 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
           </div>
           <div className="space-y-2">
             <Label>Rol</Label>
-            <Select value={role} onValueChange={setRole}>
+            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona un rol" />
               </SelectTrigger>

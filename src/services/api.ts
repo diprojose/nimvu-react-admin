@@ -2,7 +2,9 @@ import axios from 'axios';
 
 const api = axios.create({
   // baseURL: 'https://nimvu-be-nest.onrender.com',
-  baseURL: 'http://localhost:3001',
+  // Usar 127.0.0.1 (IPv4) en vez de 'localhost': en Windows 'localhost' resuelve
+  // primero a IPv6 (::1) y puede chocar con otro dev server en el mismo puerto.
+  baseURL: 'http://127.0.0.1:3001',
   headers: {
     'Content-Type': 'application/json',
   },

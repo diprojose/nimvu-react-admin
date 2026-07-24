@@ -13,11 +13,19 @@ export function useB2BProducts() {
   });
 }
 
+export interface B2BPriceBulkItem {
+  productId: string;
+  price12: number;
+  price50: number;
+  price200: number;
+  isActive: boolean;
+}
+
 export function useUpdateB2BPricesBulk() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (pricesDto: { prices: any[] }) => {
+    mutationFn: async (pricesDto: { prices: B2BPriceBulkItem[] }) => {
       const { data } = await api.post('/products/b2b-prices/bulk', pricesDto);
       return data;
     },

@@ -66,7 +66,7 @@ export default function Accounting() {
   const filterByPeriod = <T extends { date?: string; createdAt?: string }>(items: T[]) => {
     if (period === 'all') return items;
     return items.filter(item => {
-      const d = parseISO((item as any).date || (item as any).createdAt);
+      const d = parseISO(item.date || item.createdAt || '');
       return period === 'month' ? isThisMonth(d) : isThisYear(d);
     });
   };

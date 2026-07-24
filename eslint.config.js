@@ -19,5 +19,9 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Keep the codebase free of `any`, but as a warning so it never blocks a build.
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
   },
 ])

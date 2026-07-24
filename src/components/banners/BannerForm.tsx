@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -107,7 +107,7 @@ export function BannerForm({
       };
 
   const form = useForm<BannerFormValues>({
-    resolver: zodResolver(bannerSchema) as any,
+    resolver: zodResolver(bannerSchema) as Resolver<BannerFormValues>,
     defaultValues: initialValues,
   });
 

@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import type { Banner } from '@/types';
-import { BannerForm } from '@/components/banners/BannerForm';
+import { BannerForm, type BannerFormValues } from '@/components/banners/BannerForm';
 
 const HOME_FILTER = '__home__';
 const ALL_FILTER = 'all';
@@ -62,7 +62,7 @@ export default function Banners() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | undefined>(undefined);
 
-  const handleSave = (values: any) => {
+  const handleSave = (values: BannerFormValues) => {
     if (editingBanner) {
       updateBanner.mutate(
         { id: editingBanner.id, ...values },

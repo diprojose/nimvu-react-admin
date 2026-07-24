@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ interface UniverseFormProps {
 
 export function UniverseForm({ initialData, onSubmit, isLoading }: UniverseFormProps) {
   const form = useForm<UniverseFormValues>({
-    resolver: zodResolver(universeSchema) as any,
+    resolver: zodResolver(universeSchema) as Resolver<UniverseFormValues>,
     defaultValues: {
       name: '',
       slug: '',

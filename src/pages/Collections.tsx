@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from 'react';
 import type { Collection } from '@/types';
-import { CollectionForm } from '@/components/collections/CollectionForm';
+import { CollectionForm, type CollectionFormValues } from '@/components/collections/CollectionForm';
 import { Badge } from '@/components/ui/badge';
 
 export default function Collections() {
@@ -35,7 +35,7 @@ export default function Collections() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCollection, setEditingCollection] = useState<Collection | undefined>(undefined);
 
-  const handleSaveCollection = (values: any) => {
+  const handleSaveCollection = (values: CollectionFormValues) => {
     if (editingCollection) {
       updateCollection.mutate({
         id: editingCollection.id,

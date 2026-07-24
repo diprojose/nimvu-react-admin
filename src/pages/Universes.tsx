@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import type { Universe } from '@/types';
-import { UniverseForm } from '@/components/universes/UniverseForm';
+import { UniverseForm, type UniverseFormValues } from '@/components/universes/UniverseForm';
 import { getUniverseIcon } from '@/lib/universe-icons';
 
 export default function Universes() {
@@ -41,7 +41,7 @@ export default function Universes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUniverse, setEditingUniverse] = useState<Universe | undefined>(undefined);
 
-  const handleSave = (values: any) => {
+  const handleSave = (values: UniverseFormValues) => {
     if (editingUniverse) {
       updateUniverse.mutate(
         { id: editingUniverse.id, ...values },

@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ interface ShippingRateFormProps {
 
 export function ShippingRateForm({ initialData, onSubmit, isLoading }: ShippingRateFormProps) {
   const form = useForm<ShippingRateFormValues>({
-    resolver: zodResolver(shippingRateSchema) as any,
+    resolver: zodResolver(shippingRateSchema) as Resolver<ShippingRateFormValues>,
     defaultValues: {
       country: initialData?.country ?? 'Colombia',
       state: initialData?.state ?? '',

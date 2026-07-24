@@ -155,7 +155,56 @@ export interface OrderItem {
   quantity: number;
   price: number;
   variantId?: string;
+  variantName?: string;
   variant?: Variant;
+}
+
+/**
+ * Shipping address stored as JSON on the order. Fields are optional because
+ * orders come from several sources (native checkout, WhatsApp, Mercado Libre)
+ * with slightly different shapes.
+ */
+export interface ShippingAddress {
+  name?: string;
+  street?: string;
+  address_1?: string;
+  address_2?: string;
+  city?: string;
+  state?: string;
+  province?: string;
+  zip?: string;
+  postal_code?: string;
+  country?: string;
+  phone?: string;
+  notes?: string;
+}
+
+/** Variant payload sent to the API when creating/updating a product. */
+export interface VariantInput {
+  id?: string;
+  name: string;
+  sku: string;
+  stock: number;
+  price?: number;
+  images: string[];
+}
+
+/** Product payload sent to the API when creating/updating a product. */
+export interface ProductInput {
+  name: string;
+  description?: string;
+  price: number;
+  stock: number;
+  images: string[];
+  height?: number;
+  width?: number;
+  length?: number;
+  longDescription?: string;
+  universeId: string;
+  categoryId?: string;
+  isB2BOnly: boolean;
+  isActive: boolean;
+  variants: VariantInput[];
 }
 
 export interface Collection {

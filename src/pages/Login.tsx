@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AxiosError } from 'axios';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -43,8 +44,9 @@ export default function Login() {
       const data = await loginUser(values);
       login(data.access_token, data.user);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al iniciar sesión');
+    } catch (err: unknown) {
+      const data = err instanceof AxiosError ? (err.response?.data as { message?: string } | undefined) : undefined;
+      setError(data?.message || 'Error al iniciar sesión');
     }
   }
 

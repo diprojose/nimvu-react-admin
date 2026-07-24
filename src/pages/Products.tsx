@@ -1,4 +1,4 @@
-import { useProducts, useDeleteProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProducts';
+import { useProducts, useDeleteProduct, useUpdateProduct } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -16,83 +16,29 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Product } from '@/types';
-import { ProductForm } from '@/components/products/ProductForm';
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
 
 export default function Products() {
   const { data: products, isLoading, error } = useProducts();
   const deleteProduct = useDeleteProduct();
-  const createProduct = useCreateProduct();
-  const updateProduct = useUpdateProduct(); // Assuming this hook exists or will be added
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+  const updateProduct = useUpdateProduct();
+  const navigate = useNavigate();
 
-  const handleSaveProduct = (values: any) => {
-    // Images are now arrays from the form
-    const images = values.images || [];
-
-    // Ensure variants have proper typing/structure
-    const variants = values.variants?.map((v: any) => ({
-      name: v.name,
-      sku: v.sku,
-      stock: Number(v.stock),
-      price: v.price ? Number(v.price) : Number(values.price), // Fallback to main price
-      images: v.images || [],
-    })) || [];
-
-    const payload = {
-      ...values,
-      price: Number(values.price),
-      stock: Number(values.stock),
-      images,
-      variants,
-    };
-
-    if (editingProduct) {
-      updateProduct.mutate({
-        id: editingProduct.id,
-        ...payload,
-      }, {
-        onSuccess: () => {
-          setIsModalOpen(false);
-          setEditingProduct(undefined);
-        }
-      });
-    } else {
-      createProduct.mutate(payload, {
-        onSuccess: () => {
-          setIsModalOpen(false);
-          setEditingProduct(undefined);
-        }
-      });
-    }
-  };
-
-  const openCreateModal = () => {
-    setEditingProduct(undefined);
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (product: Product) => {
-    setEditingProduct(product);
-    setIsModalOpen(true);
-  };
-
-  if (isLoading) return <div>Cargando productos...</div>;
-  if (error) return <div>Error al cargar productos</div>;
+  if (isLoading) return <div className="py-10 text-center text-muted-foreground">Cargando productos...</div>;
+  if (error) return <div className="py-10 text-center text-destructive">Error al cargar productos</div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Productos</h1>
-        <Button onClick={openCreateModal}>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
+          <p className="text-muted-foreground">{products?.length ?? 0} productos en el catálogo</p>
+        </div>
+        <Button onClick={() => navigate('/products/new')}>
           <Plus className="mr-2 h-4 w-4" /> Crear Producto
         </Button>
       </div>
@@ -111,8 +57,12 @@ export default function Products() {
           </TableHeader>
           <TableBody>
             {products?.map((product: Product) => (
-              <TableRow key={product.id}>
-                <TableCell>
+              <TableRow
+                key={product.id}
+                className="cursor-pointer"
+                onClick={() => navigate(`/products/${product.id}/edit`)}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {product.images?.[0] ? (
                     <img
                       src={product.images[0]}
@@ -124,9 +74,9 @@ export default function Products() {
                   )}
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell>${product.price.toFixed(2)}</TableCell>
-                <TableCell>{product.stock}</TableCell>
-                <TableCell>
+                <TableCell className="tabular-nums">{formatCurrency(product.price)}</TableCell>
+                <TableCell className="tabular-nums">{product.stock}</TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <button
                     role="switch"
                     aria-checked={product.isActive ?? true}
@@ -149,7 +99,7 @@ export default function Products() {
                     />
                   </button>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="h-8 w-8 p-0">
@@ -159,7 +109,7 @@ export default function Products() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => openEditModal(product)}>
+                      <DropdownMenuItem onClick={() => navigate(`/products/${product.id}/edit`)}>
                         <Pencil className="mr-2 h-4 w-4" /> Editar
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -180,19 +130,6 @@ export default function Products() {
           </TableBody>
         </Table>
       </div>
-
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{editingProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}</DialogTitle>
-          </DialogHeader>
-          <ProductForm
-            initialData={editingProduct}
-            onSubmit={handleSaveProduct}
-            isLoading={createProduct.isPending || updateProduct.isPending}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

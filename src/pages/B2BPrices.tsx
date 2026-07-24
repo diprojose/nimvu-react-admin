@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { useB2BProducts, useUpdateB2BPricesBulk } from '@/hooks/useB2BPrices';
+import { useB2BProducts, useUpdateB2BPricesBulk, type B2BPriceBulkItem } from '@/hooks/useB2BPrices';
 import {
   Table,
   TableBody,
@@ -61,15 +61,17 @@ export default function B2BPrices() {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
 
-        const pricesPayload = jsonData.map((row) => ({
-          productId: row['ID de Producto']?.toString(),
-          price12: parseFloat(row['Precio B2B (12 unid.)']) || 0,
-          price50: parseFloat(row['Precio B2B (50 unid.)']) || 0,
-          price200: parseFloat(row['Precio B2B (200 unid.)']) || 0,
-          isActive: row['Activo'] === 'VERDADERO' || row['Activo'] === true
-        })).filter(item => item.productId); // Filter out empty rows
+        const pricesPayload = jsonData
+          .map((row) => ({
+            productId: row['ID de Producto'] != null ? String(row['ID de Producto']) : undefined,
+            price12: parseFloat(String(row['Precio B2B (12 unid.)'] ?? '')) || 0,
+            price50: parseFloat(String(row['Precio B2B (50 unid.)'] ?? '')) || 0,
+            price200: parseFloat(String(row['Precio B2B (200 unid.)'] ?? '')) || 0,
+            isActive: row['Activo'] === 'VERDADERO' || row['Activo'] === true,
+          }))
+          .filter((item): item is B2BPriceBulkItem => Boolean(item.productId)); // Filter out empty rows
 
         if (pricesPayload.length === 0) {
           setFileError("El archivo no contiene productos válidos. Verifica que no hayas borrado la columna 'ID de Producto'.");

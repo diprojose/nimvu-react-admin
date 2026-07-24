@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
-import type { Product } from '@/types';
+import type { Product, ProductInput } from '@/types';
 
 export function useProducts() {
   return useQuery<Product[]>({
@@ -16,7 +16,7 @@ export function useCreateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (newProduct: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'variants' | 'orderItems'>) => {
+    mutationFn: async (newProduct: ProductInput) => {
       const { data } = await api.post('/products', newProduct);
       return data;
     },
@@ -30,7 +30,7 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Product> & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: Partial<ProductInput> & { id: string }) => {
       const { data } = await api.patch(`/products/${id}`, updates);
       return data;
     },

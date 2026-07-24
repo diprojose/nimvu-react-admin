@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -50,7 +50,7 @@ interface DiscountFormProps {
 
 export function DiscountForm({ initialData, onSubmit, isLoading }: DiscountFormProps) {
   const form = useForm<DiscountFormValues>({
-    resolver: zodResolver(discountSchema) as any,
+    resolver: zodResolver(discountSchema) as Resolver<DiscountFormValues>,
     defaultValues: {
       name: '',
       code: '',

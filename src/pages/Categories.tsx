@@ -52,7 +52,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 
-function SortableTableRow({ category, openEditModal, handleDelete }: { category: Category, openEditModal: any, handleDelete: any }) {
+function SortableTableRow({ category, openEditModal, handleDelete }: { category: Category, openEditModal: (category: Category) => void, handleDelete: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: category.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
