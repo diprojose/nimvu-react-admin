@@ -32,7 +32,7 @@ import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search
 import { jsPDF } from 'jspdf';
 import { useState, useMemo } from 'react';
 import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
-import ManualOrderForm from '@/components/orders/ManualOrderForm';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 import type { OrderStatus, ShippingCarrier } from '@/types';
@@ -111,10 +111,10 @@ export default function Orders() {
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
   const sendRecovery = useSendRecoveryEmail();
+  const navigate = useNavigate();
 
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isManualOpen, setIsManualOpen] = useState(false);
   const [shippingOrder, setShippingOrder] = useState<any>(null);
   const [carrierInput, setCarrierInput] = useState<ShippingCarrier | ''>('');
   const [trackingInput, setTrackingInput] = useState('');
@@ -535,7 +535,7 @@ export default function Orders() {
             <Download className="h-4 w-4" />
             Exportar Excel
           </Button>
-          <Button onClick={() => setIsManualOpen(true)} className="bg-black text-white hover:bg-gray-800 gap-2">
+          <Button onClick={() => navigate('/orders/new')} className="bg-black text-white hover:bg-gray-800 gap-2">
             <Plus className="h-4 w-4" />
             Nueva Orden
           </Button>
@@ -873,7 +873,6 @@ export default function Orders() {
       </Dialog>
 
       {/* ── MODAL NUEVA ORDEN MANUAL ── */}
-      <ManualOrderForm isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
 
       {/* ── MODAL AGREGAR/EDITAR ENVÍO ── */}
       <Dialog open={!!shippingOrder} onOpenChange={(open) => { if (!open) closeShipping(); }}>

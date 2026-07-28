@@ -7,6 +7,7 @@ import Categories from '@/pages/Categories';
 import Universes from '@/pages/Universes';
 import Banners from '@/pages/Banners';
 import Orders from '@/pages/Orders';
+import ManualOrderEditor from '@/pages/ManualOrderEditor';
 import Users from '@/pages/Users';
 import Collections from '@/pages/Collections';
 import Discounts from '@/pages/Discounts';
@@ -32,6 +33,7 @@ function App() {
           <Route path="discounts" element={<Discounts />} />
           <Route path="shipping" element={<ShippingRates />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="orders/new" element={<ManualOrderEditor />} />
           <Route path="users" element={<Users />} />
           <Route path="accounting" element={<Accounting />} />
         </Route>
