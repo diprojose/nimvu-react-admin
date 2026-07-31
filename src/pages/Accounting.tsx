@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -11,12 +11,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOrders } from '@/hooks/useOrders';
 import { useExpenses, useCreateExpense, useDeleteExpense } from '@/hooks/useExpenses';
 import type { ExpenseCategory } from '@/types';
-import { format, parseISO, isThisMonth, isThisYear } from 'date-fns';
+import {
+  format, parseISO, isSameMonth, isSameYear,
+  startOfMonth, addMonths, subMonths, addYears, subYears, getYear,
+} from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   FILAMENT: 'Filamento',
@@ -41,14 +45,38 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
 };
 
 type Tab = 'income' | 'expenses';
-type PeriodFilter = 'month' | 'year' | 'all';
+type PeriodMode = 'month' | 'year' | 'all';
+
+const MODE_LABELS: Record<PeriodMode, string> = {
+  month: 'Mes',
+  year: 'Año',
+  all: 'Todo',
+};
+
+const PAYMENT_LABELS: Record<string, string> = {
+  WHATSAPP: 'WhatsApp',
+  CASH_ON_DELIVERY: 'Contra Entrega',
+  MERCADO_LIBRE: 'Mercado Libre',
+  WOMPI: 'Wompi',
+};
+const paymentLabel = (m?: string) => PAYMENT_LABELS[m || ''] || 'Wompi';
+
+const STATUS_LABELS: Record<string, string> = {
+  DELIVERED: 'Entregado',
+  SHIPPED: 'En camino',
+  PACKED: 'Empacado',
+  PROCESSING: 'En preparación',
+  PENDING: 'Pendiente',
+};
+const statusLabel = (s?: string) => STATUS_LABELS[s || ''] || 'Pendiente';
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
 
 export default function Accounting() {
   const [tab, setTab] = useState<Tab>('income');
-  const [period, setPeriod] = useState<PeriodFilter>('month');
+  const [mode, setMode] = useState<PeriodMode>('month');
+  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   // Form state
@@ -63,18 +91,21 @@ export default function Accounting() {
   const createExpense = useCreateExpense();
   const deleteExpense = useDeleteExpense();
 
-  const filterByPeriod = <T extends { date?: string; createdAt?: string }>(items: T[]) => {
-    if (period === 'all') return items;
-    return items.filter(item => {
-      const d = parseISO(item.date || item.createdAt || '');
-      return period === 'month' ? isThisMonth(d) : isThisYear(d);
-    });
-  };
+  const filterByPeriod = useCallback(
+    <T extends { date?: string; createdAt?: string }>(items: T[]) => {
+      if (mode === 'all') return items;
+      return items.filter(item => {
+        const d = parseISO(item.date || item.createdAt || '');
+        return mode === 'month' ? isSameMonth(d, selectedMonth) : isSameYear(d, selectedMonth);
+      });
+    },
+    [mode, selectedMonth]
+  );
 
   // Income: delivered/non-cancelled orders
   const activeOrders = useMemo(
     () => filterByPeriod(orders.filter(o => o.status !== 'CANCELLED')),
-    [orders, period]
+    [orders, filterByPeriod]
   );
   const totalIncome = useMemo(
     () => activeOrders.reduce((sum, o) => sum + o.total, 0),
@@ -82,7 +113,7 @@ export default function Accounting() {
   );
 
   // Expenses
-  const filteredExpenses = useMemo(() => filterByPeriod(expenses), [expenses, period]);
+  const filteredExpenses = useMemo(() => filterByPeriod(expenses), [expenses, filterByPeriod]);
   const totalExpenses = useMemo(
     () => filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
     [filteredExpenses]
@@ -100,6 +131,78 @@ export default function Accounting() {
   }, [filteredExpenses]);
 
   const profit = totalIncome - totalExpenses;
+
+  // Period label + navigation
+  const periodLabel =
+    mode === 'all' ? 'Todo'
+    : mode === 'year' ? format(selectedMonth, 'yyyy')
+    : format(selectedMonth, 'MMMM yyyy', { locale: es });
+
+  const goPrev = () =>
+    setSelectedMonth(mode === 'year' ? subYears(selectedMonth, 1) : subMonths(selectedMonth, 1));
+  const goNext = () =>
+    setSelectedMonth(mode === 'year' ? addYears(selectedMonth, 1) : addMonths(selectedMonth, 1));
+
+  // Disable "next" once we reach the current month/year (no future data)
+  const now = new Date();
+  const isAtCurrentPeriod =
+    mode === 'year'
+      ? getYear(selectedMonth) >= getYear(now)
+      : startOfMonth(selectedMonth) >= startOfMonth(now);
+
+  const handleExportExcel = () => {
+    if (activeOrders.length === 0 && filteredExpenses.length === 0) {
+      alert('No hay datos en este período para exportar.');
+      return;
+    }
+
+    // Sheet 1: Resumen
+    const summaryRows: (string | number)[][] = [
+      ['Contabilidad Nimvu'],
+      ['Período', periodLabel],
+      ['Generado', format(new Date(), 'dd MMM yyyy HH:mm', { locale: es })],
+      [],
+      ['Ingresos', totalIncome],
+      ['Gastos', totalExpenses],
+      ['Ganancia Neta', profit],
+      [],
+      ['Gastos por categoría', ''],
+      ...expensesByCategory.map(({ category, total }) => [CATEGORY_LABELS[category], total]),
+    ];
+    const wsResumen = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsResumen['!cols'] = [{ wch: 28 }, { wch: 20 }];
+
+    // Sheet 2: Ingresos
+    const incomeRows = activeOrders.map(o => ({
+      'Fecha': format(parseISO(o.createdAt), 'dd/MM/yyyy', { locale: es }),
+      'Cliente': o.user?.name || 'Cliente',
+      'Email': o.user?.email || '',
+      'Canal': paymentLabel(o.paymentMethod),
+      'Estado': statusLabel(o.status),
+      'Total (COP)': o.total,
+    }));
+    const wsIngresos = XLSX.utils.json_to_sheet(incomeRows);
+    wsIngresos['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 14 }];
+
+    // Sheet 3: Gastos
+    const expenseRows = filteredExpenses.map(e => ({
+      'Fecha': format(parseISO(e.date), 'dd/MM/yyyy', { locale: es }),
+      'Descripción': e.description,
+      'Categoría': CATEGORY_LABELS[e.category],
+      'Notas': e.notes || '',
+      'Monto (COP)': e.amount,
+    }));
+    const wsGastos = XLSX.utils.json_to_sheet(expenseRows);
+    wsGastos['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 32 }, { wch: 14 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+    XLSX.utils.book_append_sheet(wb, wsIngresos, 'Ingresos');
+    XLSX.utils.book_append_sheet(wb, wsGastos, 'Gastos');
+
+    const safeLabel = periodLabel.replace(/ /g, '_');
+    XLSX.writeFile(wb, `contabilidad_${safeLabel}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
 
   const handleSubmit = () => {
     if (!formDesc || !formAmount) return;
@@ -130,35 +233,57 @@ export default function Accounting() {
     }
   };
 
-  const PERIOD_LABELS: Record<PeriodFilter, string> = {
-    month: 'Este mes',
-    year: 'Este año',
-    all: 'Todo',
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold">Contabilidad</h1>
-        <Button onClick={() => setIsFormOpen(true)} className="bg-black text-white hover:bg-gray-800 gap-2">
-          <Plus className="h-4 w-4" />
-          Agregar Gasto
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => setIsFormOpen(true)} className="bg-black text-white hover:bg-gray-800 gap-2">
+            <Plus className="h-4 w-4" />
+            Agregar Gasto
+          </Button>
+        </div>
       </div>
 
-      {/* Period filters */}
-      <div className="flex gap-2">
-        {(Object.keys(PERIOD_LABELS) as PeriodFilter[]).map(key => (
-          <button
-            key={key}
-            onClick={() => setPeriod(key)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              period === key ? 'bg-black text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {PERIOD_LABELS[key]}
-          </button>
-        ))}
+      {/* Period filters + navigation */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2">
+          {(Object.keys(MODE_LABELS) as PeriodMode[]).map(key => (
+            <button
+              key={key}
+              onClick={() => setMode(key)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                mode === key ? 'bg-black text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {MODE_LABELS[key]}
+            </button>
+          ))}
+        </div>
+
+        {mode !== 'all' && (
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={goPrev} className="h-8 w-8 p-0">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium capitalize min-w-[130px] text-center select-none">
+              {periodLabel}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goNext}
+              disabled={isAtCurrentPeriod}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}

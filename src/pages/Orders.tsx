@@ -28,10 +28,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X, Truck, MessageCircle, Check } from "lucide-react";
+import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X, Truck, MessageCircle, Check, Wrench } from "lucide-react";
 import { jsPDF } from 'jspdf';
 import { useState, useMemo } from 'react';
 import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
+import { PostSaleSection } from '@/components/orders/PostSaleSection';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -650,7 +651,33 @@ export default function Orders() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{order.user?.name || 'Usuario'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">{order.user?.name || 'Usuario'}</span>
+                        {(() => {
+                          const cases = order.postSaleCases ?? [];
+                          if (cases.length === 0) return null;
+                          const pending = cases.filter(
+                            (c) => c.status !== 'RESOLVED' && c.status !== 'CANCELLED',
+                          ).length;
+                          return (
+                            <span
+                              title={
+                                pending > 0
+                                  ? `${pending} caso(s) de postventa sin resolver`
+                                  : 'Postventa resuelta'
+                              }
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                                pending > 0
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              <Wrench className="h-2.5 w-2.5" />
+                              {pending > 0 ? pending : cases.length}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <span className="text-xs text-muted-foreground">{order.user?.email || 'No email'}</span>
                     </div>
                   </TableCell>
@@ -867,6 +894,8 @@ export default function Orders() {
                   </p>
                 </div>
               </div>
+
+              <PostSaleSection order={selectedOrder} />
             </div>
           )}
         </DialogContent>

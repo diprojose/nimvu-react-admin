@@ -143,9 +143,65 @@ export interface Order {
   shippingCarrier?: ShippingCarrier | null;
   trackingNumber?: string | null;
   items?: OrderItem[];
+  postSaleCases?: PostSaleCase[];
 }
 
 export type ShippingCarrier = 'ENVIA' | 'SERVIENTREGA';
+
+// ── Postventa ──────────────────────────────────────────────────────────────
+
+export type PostSaleType =
+  | 'TRANSIT_DAMAGE'
+  | 'CUSTOMER_DAMAGE'
+  | 'EXCHANGE'
+  | 'MISSING_ITEM'
+  | 'OTHER';
+
+export type PostSaleFault = 'NIMVU' | 'CUSTOMER' | 'UNDEFINED';
+
+/**
+ * CUSTOMER_TO_COURIER: el cliente paga el envío, pero directo al domiciliario.
+ * Ese dinero nunca entra a la caja de Nimvu y no debe contarse como ingreso.
+ */
+export type PostSaleShippingPayer =
+  | 'NIMVU'
+  | 'CUSTOMER_TO_NIMVU'
+  | 'CUSTOMER_TO_COURIER';
+
+export type PostSaleStatus =
+  | 'OPEN'
+  | 'PREPARING'
+  | 'SHIPPED'
+  | 'RESOLVED'
+  | 'CANCELLED';
+
+export interface PostSaleItem {
+  id: string;
+  caseId: string;
+  productId: string;
+  product?: Pick<Product, 'id' | 'name' | 'images'>;
+  variantName?: string | null;
+  fromVariantName?: string | null;
+  quantity: number;
+  note?: string | null;
+}
+
+export interface PostSaleCase {
+  id: string;
+  orderId: string;
+  type: PostSaleType;
+  fault: PostSaleFault;
+  status: PostSaleStatus;
+  description?: string | null;
+  shippingPayer?: PostSaleShippingPayer | null;
+  shippingAmount?: number | null;
+  shippingCarrier?: ShippingCarrier | null;
+  trackingNumber?: string | null;
+  items?: PostSaleItem[];
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+}
 
 export interface OrderItem {
   id: string;

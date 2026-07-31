@@ -38,7 +38,9 @@ export function useCreateUser() {
 
   return useMutation({
     mutationFn: async (userData: CreateUserInput) => {
-      const { data } = await api.post('/users', userData);
+      // POST /users es el registro publico y siempre crea un USER; para
+      // asignar rol hay que usar el endpoint de admin.
+      const { data } = await api.post('/users/admin', userData);
       return data;
     },
     onSuccess: () => {

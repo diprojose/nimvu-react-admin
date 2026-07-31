@@ -42,6 +42,10 @@ export default function Login() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       const data = await loginUser(values);
+      if (data.user?.role !== 'ADMIN') {
+        setError('Esta cuenta no tiene acceso al panel de administración.');
+        return;
+      }
       login(data.access_token, data.user);
       navigate('/');
     } catch (err: unknown) {
