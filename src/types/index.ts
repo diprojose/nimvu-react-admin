@@ -102,6 +102,7 @@ export interface Product {
   updatedAt: string;
   variants?: Variant[];
   discountPrice?: number;
+  discountEndDate?: string;
   discounts?: Discount[];
   b2bPrices?: B2BPrice[];
   isB2BOnly?: boolean;
@@ -261,6 +262,9 @@ export interface ProductInput {
   isB2BOnly: boolean;
   isActive: boolean;
   variants: VariantInput[];
+  /** null quita la promoción vigente. */
+  discountPrice?: number | null;
+  discountEndDate?: string | null;
 }
 
 export interface Collection {

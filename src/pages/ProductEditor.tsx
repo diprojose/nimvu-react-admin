@@ -1,4 +1,5 @@
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
+import { useMemo } from 'react';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProductForm, type ProductFormValues } from '@/components/products/ProductForm';
@@ -9,6 +10,7 @@ const FORM_ID = 'product-form';
 
 export default function ProductEditor() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 
@@ -18,6 +20,24 @@ export default function ProductEditor() {
 
   const editingProduct = isEdit ? products?.find((p) => p.id === id) : undefined;
   const saving = createProduct.isPending || updateProduct.isPending;
+
+  // Duplicar: /products/new?from=<id> precarga el formulario con una copia.
+  // No se crea nada hasta que el usuario guarde, así que cancelar no deja
+  // productos basura.
+  const duplicateFromId = searchParams.get('from');
+  const duplicateSource = useMemo(() => {
+    if (isEdit || !duplicateFromId) return undefined;
+    const source = products?.find((p) => p.id === duplicateFromId);
+    if (!source) return undefined;
+    return {
+      ...source,
+      name: `${source.name} (copia)`,
+      // El SKU es único en la base: sin sufijo, guardar fallaría.
+      variants: source.variants?.map((v) => ({ ...v, sku: `${v.sku}-COPIA` })),
+    };
+  }, [isEdit, duplicateFromId, products]);
+
+  const initialData = editingProduct ?? duplicateSource;
 
   const handleSave = (values: ProductFormValues) => {
     const variants: VariantInput[] =
@@ -29,12 +49,20 @@ export default function ProductEditor() {
         images: v.images || [],
       })) || [];
 
+    // Campos de promoción vacíos viajan como null para poder quitarla.
+    const hasDiscount = !!values.discountPrice && Number(values.discountPrice) > 0;
+
     const payload: ProductInput = {
       ...values,
       price: Number(values.price),
       stock: Number(values.stock),
       images: values.images || [],
       variants,
+      discountPrice: hasDiscount ? Number(values.discountPrice) : null,
+      discountEndDate:
+        hasDiscount && values.discountEndDate
+          ? new Date(`${values.discountEndDate}T23:59:59`).toISOString()
+          : null,
     };
 
     if (isEdit && editingProduct) {
@@ -47,7 +75,7 @@ export default function ProductEditor() {
     }
   };
 
-  if (isEdit && isLoading) {
+  if ((isEdit || duplicateFromId) && isLoading) {
     return <div className="py-10 text-center text-muted-foreground">Cargando producto...</div>;
   }
 
@@ -92,9 +120,17 @@ export default function ProductEditor() {
         </div>
       </div>
 
+      {duplicateSource && (
+        <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Estás duplicando <strong>{products?.find((p) => p.id === duplicateFromId)?.name}</strong>.
+          Ajusta el nombre y los SKU de las variantes antes de guardar. No se crea nada hasta que
+          presiones "Crear producto".
+        </div>
+      )}
+
       <ProductForm
         formId={FORM_ID}
-        initialData={editingProduct}
+        initialData={initialData}
         onSubmit={handleSave}
         isLoading={saving}
       />

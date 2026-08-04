@@ -53,7 +53,20 @@ const productSchema = z.object({
   isB2BOnly: z.boolean().default(false),
   isActive: z.boolean().default(true),
   variants: z.array(variantSchema).default([]),
-});
+  // Precio promocional temporal. Se guarda como texto porque el input debe
+  // poder quedar vacío: con z.coerce.number() un campo en blanco se volvería 0
+  // y parecería una promoción de $0. La conversión ocurre al guardar.
+  discountPrice: z.string().optional(),
+  discountEndDate: z.string().optional(),
+})
+  .refine((d) => !d.discountPrice || Number(d.discountPrice) < d.price, {
+    message: 'El precio con descuento debe ser menor al precio normal',
+    path: ['discountPrice'],
+  })
+  .refine((d) => !d.discountPrice || !!d.discountEndDate, {
+    message: 'Indica hasta cuándo aplica el descuento',
+    path: ['discountEndDate'],
+  });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
 
@@ -88,6 +101,8 @@ export function ProductForm({ initialData, onSubmit, isLoading, formId = 'produc
       isB2BOnly: false,
       isActive: true,
       variants: [],
+      discountPrice: '',
+      discountEndDate: '',
     },
   });
 
@@ -158,6 +173,11 @@ export function ProductForm({ initialData, onSubmit, isLoading, formId = 'produc
         categoryId: initialData.categoryId || initialData.category?.id || '',
         isB2BOnly: initialData.isB2BOnly || false,
         isActive: initialData.isActive ?? true,
+        discountPrice: initialData.discountPrice ? String(initialData.discountPrice) : '',
+        // El input date espera yyyy-MM-dd; la API devuelve ISO completo.
+        discountEndDate: initialData.discountEndDate
+          ? initialData.discountEndDate.slice(0, 10)
+          : '',
         variants:
           initialData.variants?.map((v) => ({
             id: v.id,
@@ -172,6 +192,16 @@ export function ProductForm({ initialData, onSubmit, isLoading, formId = 'produc
   }, [initialData, form]);
 
   const watchedVariants = form.watch('variants') || [];
+
+  const watchedPrice = form.watch('price');
+  const watchedDiscountPrice = form.watch('discountPrice');
+  const hasDiscount =
+    !!watchedDiscountPrice &&
+    Number(watchedDiscountPrice) > 0 &&
+    Number(watchedDiscountPrice) < Number(watchedPrice);
+  const discountPercent = hasDiscount
+    ? Math.round((1 - Number(watchedDiscountPrice) / Number(watchedPrice)) * 100)
+    : 0;
 
   return (
     <Form {...form}>
@@ -536,6 +566,59 @@ export function ProductForm({ initialData, onSubmit, isLoading, formId = 'produc
                 <p className="text-xs text-muted-foreground">
                   Si el producto tiene variantes, el stock de cada variante manda sobre el global.
                 </p>
+
+                <div className="space-y-4 border-t pt-4">
+                  <div>
+                    <p className="text-sm font-medium">Precio promocional</p>
+                    <p className="text-xs text-muted-foreground">
+                      Opcional. La tienda muestra este precio hasta la fecha indicada.
+                    </p>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="discountPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Precio con descuento (COP)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Sin promoción"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="discountEndDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vigente hasta</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {hasDiscount && (
+                    <div className="rounded-md bg-green-50 px-3 py-2 text-xs text-green-800">
+                      El cliente verá{' '}
+                      <span className="font-semibold">{currency(Number(watchedDiscountPrice))}</span>{' '}
+                      en vez de{' '}
+                      <span className="line-through">{currency(Number(watchedPrice))}</span>
+                      {discountPercent > 0 && <> · {discountPercent}% menos</>}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
