@@ -236,6 +236,47 @@ export interface ShippingAddress {
   notes?: string;
 }
 
+export type CheckoutLeadStatus = 'OPEN' | 'CONTACTED' | 'LOST';
+
+export interface CheckoutLeadItem {
+  productId: string;
+  variantId?: string;
+  name: string;
+  variantName?: string;
+  quantity: number;
+  price: number;
+  image?: string;
+}
+
+/**
+ * Cliente que llenó el checkout y se fue sin pagar. No es una orden: no
+ * descuenta stock ni aparece en las ventas.
+ */
+export interface CheckoutLead {
+  id: string;
+  sessionId: string;
+  email: string;
+  phone?: string;
+  name?: string;
+  shippingAddress?: ShippingAddress;
+  items: CheckoutLeadItem[];
+  subtotal: number;
+  userId?: string;
+  status: CheckoutLeadStatus;
+  note?: string;
+  contactedAt?: string;
+  /** Última vez que el cliente tocó el checkout. */
+  capturedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  /**
+   * Lo calcula el backend cruzando contra las órdenes reales del correo; no es
+   * una columna. Solo llega con `?includeConverted=true`, porque la vista por
+   * defecto ya los filtra.
+   */
+  converted: boolean;
+}
+
 /** Variant payload sent to the API when creating/updating a product. */
 export interface VariantInput {
   id?: string;

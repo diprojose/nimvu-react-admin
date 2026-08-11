@@ -8,6 +8,7 @@ import Universes from '@/pages/Universes';
 import Banners from '@/pages/Banners';
 import Orders from '@/pages/Orders';
 import ManualOrderEditor from '@/pages/ManualOrderEditor';
+import CheckoutLeads from '@/pages/CheckoutLeads';
 import Users from '@/pages/Users';
 import Collections from '@/pages/Collections';
 import Discounts from '@/pages/Discounts';
@@ -34,6 +35,7 @@ function App() {
           <Route path="shipping" element={<ShippingRates />} />
           <Route path="orders" element={<Orders />} />
           <Route path="orders/new" element={<ManualOrderEditor />} />
+          <Route path="checkout-leads" element={<CheckoutLeads />} />
           <Route path="users" element={<Users />} />
           <Route path="accounting" element={<Accounting />} />
         </Route>

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Users, LogOut, Tags, Layers, TicketPercent, Truck, Wallet, Globe, Image as ImageIcon } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, LogOut, Tags, Layers, TicketPercent, Truck, Wallet, Globe, Image as ImageIcon, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/discounts', label: 'Descuentos', icon: TicketPercent },
   { href: '/shipping', label: 'Tarifas de Envío', icon: Truck },
   { href: '/orders', label: 'Ordenes', icon: ShoppingCart },
+  { href: '/checkout-leads', label: 'Carritos Abandonados', icon: ShoppingBag },
   { href: '/users', label: 'Usuarios', icon: Users },
   { href: '/accounting', label: 'Contabilidad', icon: Wallet },
 ];
