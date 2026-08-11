@@ -95,6 +95,57 @@ ${CARRIER_TRACKING_URL[carrier]}
 ¡Gracias por elegir Nimvu! 💛`;
 };
 
+/**
+ * Fracción del ancho útil que se usa para maquetar el texto.
+ *
+ * jsPDF calcula los anchos con las métricas de Helvetica pero NO incrusta la
+ * fuente en el PDF. Si el visor o la impresora sustituyen la fuente por otra
+ * con métricas distintas, el texto se dibuja más ancho de lo calculado. Una
+ * línea que ocupaba el 96% del ancho terminaba invadiendo la etiqueta vecina.
+ *
+ * Con 0.88 el texto aguanta una fuente hasta ~13% más ancha sin tocar el borde.
+ * Aun así el contenido va recortado a la celda (ver clip en handlePrintLabels),
+ * que es la garantía dura: pase lo que pase, no invade la etiqueta de al lado.
+ */
+const TEXT_WIDTH_RATIO = 0.88;
+
+/**
+ * Ajusta un texto a una caja de ancho fijo: baja el tamaño de fuente hasta que
+ * quepa en `maxLines` sin que ninguna línea exceda `maxWidth`. Solo recorta
+ * como último recurso, porque en una etiqueta de envío perder parte de la
+ * dirección es peor que tenerla en letra pequeña.
+ *
+ * Devuelve también el alto de línea usado, para poder apilar los bloques sin
+ * que se monten entre sí.
+ */
+function fitTextToBox(
+  doc: jsPDF,
+  text: string,
+  opts: { maxWidth: number; maxLines: number; maxFontSize: number; minFontSize: number },
+): { lines: string[]; fontSize: number; lineHeight: number } {
+  const { maxWidth, maxLines, maxFontSize, minFontSize } = opts;
+  const clean = (text || '').replace(/\s+/g, ' ').trim() || 'N/A';
+
+  for (let size = maxFontSize; size >= minFontSize; size--) {
+    doc.setFontSize(size);
+    const lines: string[] = doc.splitTextToSize(clean, maxWidth);
+    const fits =
+      lines.length <= maxLines && lines.every((l) => doc.getTextWidth(l) <= maxWidth);
+    if (fits) return { lines, fontSize: size, lineHeight: size * 1.2 };
+  }
+
+  // Ni en el tamaño mínimo cabe: recortamos la última línea visible.
+  doc.setFontSize(minFontSize);
+  const lines: string[] = doc.splitTextToSize(clean, maxWidth).slice(0, maxLines);
+  const last = lines.length - 1;
+  if (last >= 0) {
+    let s = lines[last];
+    while (s.length > 1 && doc.getTextWidth(`${s}…`) > maxWidth) s = s.slice(0, -1);
+    lines[last] = `${s}…`;
+  }
+  return { lines, fontSize: minFontSize, lineHeight: minFontSize * 1.2 };
+}
+
 type DateFilter = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year' | 'custom';
 
 const DATE_FILTER_LABELS: Record<DateFilter, string> = {
@@ -393,6 +444,15 @@ export default function Orders() {
       doc.setDrawColor(200);
       doc.rect(labelX, labelY, LABEL_W, LABEL_H);
 
+      // Todo el contenido queda recortado a su celda. Es la garantía dura
+      // contra el desborde: aunque el visor sustituya la fuente y dibuje más
+      // ancho de lo calculado, el texto se corta en el borde en vez de
+      // invadir la etiqueta vecina.
+      doc.saveGraphicsState();
+      doc.rect(labelX, labelY, LABEL_W, LABEL_H);
+      doc.clip();
+      doc.discardPath();
+
       // Logo centered at top
       let contentTop = labelY + MARGIN;
       if (logo) {
@@ -409,24 +469,49 @@ export default function Orders() {
       const phone = addr?.phone || 'N/A';
       const isCOD = order.paymentMethod === 'CASH_ON_DELIVERY';
 
+      // Ancho de texto con holgura: ver el comentario de TEXT_WIDTH_RATIO.
+      const textW = (LABEL_W - MARGIN * 2) * TEXT_WIDTH_RATIO;
+
       // Name
-      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text(order.user?.name || 'Cliente', x, contentTop + 12);
+      const name = fitTextToBox(doc, order.user?.name || 'Cliente', {
+        maxWidth: textW,
+        maxLines: 2,
+        maxFontSize: 13,
+        minFontSize: 9,
+      });
+      doc.text(name.lines, x, contentTop + 12);
+      const nameHeight = name.lines.length * name.lineHeight;
 
       // Phone
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Tel: ${phone}`, x, contentTop + 30);
+      const phoneY = contentTop + 12 + nameHeight + 6;
+      doc.text(`Tel: ${phone}`, x, phoneY);
 
       // Address
-      const addressLines = doc.splitTextToSize(parsed.street, LABEL_W - MARGIN * 2);
-      doc.text(addressLines, x, contentTop + 46);
-      const addressHeight = addressLines.length * 12;
+      doc.setFont('helvetica', 'normal');
+      const address = fitTextToBox(doc, parsed.street, {
+        maxWidth: textW,
+        // En contra entrega hay que dejarle sitio al "COBRAR" del pie: una
+        // línea menos, y fitTextToBox baja la fuente para que quepa igual.
+        maxLines: isCOD ? 3 : 4,
+        maxFontSize: 10,
+        minFontSize: 6,
+      });
+      const addressY = phoneY + 16;
+      doc.text(address.lines, x, addressY);
+      const addressHeight = address.lines.length * address.lineHeight;
 
       // City / Dept
       doc.setFont('helvetica', 'bold');
-      doc.text(parsed.city, x, contentTop + 46 + addressHeight + 4);
+      const city = fitTextToBox(doc, parsed.city, {
+        maxWidth: textW,
+        maxLines: 2,
+        maxFontSize: 10,
+        minFontSize: 7,
+      });
+      doc.text(city.lines, x, addressY + addressHeight + 4);
 
       // COD amount
       if (isCOD) {
@@ -436,6 +521,12 @@ export default function Orders() {
         doc.text(`COBRAR: ${formatCurrency(order.total)}`, x, labelY + LABEL_H - MARGIN - 10);
         doc.setTextColor(0, 0, 0);
       }
+
+      doc.restoreGraphicsState();
+
+      // Reset para que el tamaño de una etiqueta no se filtre a la siguiente.
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
     });
 
     doc.save(`etiquetas_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
