@@ -110,6 +110,14 @@ ${CARRIER_TRACKING_URL[carrier]}
 const TEXT_WIDTH_RATIO = 0.88;
 
 /**
+ * Marca de versión que se imprime al pie de cada hoja, fuera de las etiquetas.
+ * Sirve para saber de un vistazo qué build generó un PDF: sin esto, cuando
+ * alguien reporta un problema no hay forma de distinguir un archivo viejo de
+ * uno recién generado. Subir el número al cambiar la maquetación.
+ */
+const LABELS_VERSION = 'v2';
+
+/**
  * Ajusta un texto a una caja de ancho fijo: baja el tamaño de fuente hasta que
  * quepa en `maxLines` sin que ninguna línea exceda `maxWidth`. Solo recorta
  * como último recurso, porque en una etiqueta de envío perder parte de la
@@ -118,13 +126,36 @@ const TEXT_WIDTH_RATIO = 0.88;
  * Devuelve también el alto de línea usado, para poder apilar los bloques sin
  * que se monten entre sí.
  */
+/**
+ * Normaliza el texto a caracteres que las fuentes estándar de jsPDF manejan
+ * bien.
+ *
+ * jsPDF calcula los anchos con las métricas de Helvetica, pero ante caracteres
+ * tipográficos como `•` algunos visores sustituyen la fuente de ese renglón y
+ * lo dibujan mucho más ancho de lo calculado. Fue justo lo que pasó con una
+ * dirección que traía un `•`: jsPDF la medía en 217pt (cabía de sobra) y el
+ * visor la dibujaba invadiendo la etiqueta vecina.
+ */
+function sanitizeForPdf(text: string): string {
+  return (text || '')
+    .replace(/[•·]/g, '-')
+    .replace(/[–—]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/…/g, '...')
+    // Cualquier otro carácter fuera de Latin-1 corre el mismo riesgo.
+    .replace(/[^\x20-\xFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function fitTextToBox(
   doc: jsPDF,
   text: string,
   opts: { maxWidth: number; maxLines: number; maxFontSize: number; minFontSize: number },
 ): { lines: string[]; fontSize: number; lineHeight: number } {
   const { maxWidth, maxLines, maxFontSize, minFontSize } = opts;
-  const clean = (text || '').replace(/\s+/g, ' ').trim() || 'N/A';
+  const clean = sanitizeForPdf(text) || 'N/A';
 
   for (let size = maxFontSize; size >= minFontSize; size--) {
     doc.setFontSize(size);
@@ -139,9 +170,11 @@ function fitTextToBox(
   const lines: string[] = doc.splitTextToSize(clean, maxWidth).slice(0, maxLines);
   const last = lines.length - 1;
   if (last >= 0) {
+    // Se usa "..." y no "…" porque el carácter tipográfico tiene el mismo
+    // problema de sustitución de fuente que se describe en sanitizeForPdf.
     let s = lines[last];
-    while (s.length > 1 && doc.getTextWidth(`${s}…`) > maxWidth) s = s.slice(0, -1);
-    lines[last] = `${s}…`;
+    while (s.length > 1 && doc.getTextWidth(`${s}...`) > maxWidth) s = s.slice(0, -1);
+    lines[last] = `${s}...`;
   }
   return { lines, fontSize: minFontSize, lineHeight: minFontSize * 1.2 };
 }
@@ -431,8 +464,26 @@ export default function Orders() {
     const offsetX = (pageW - cols * LABEL_W) / 2;
     const offsetY = (pageH - rows * LABEL_H) / 2;
 
+    // Marca de versión al pie de cada hoja, en el margen inferior.
+    const stampPage = () => {
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(160);
+      doc.text(
+        `Nimvu · etiquetas ${LABELS_VERSION} · ${format(new Date(), 'dd/MM/yyyy HH:mm')}`,
+        offsetX,
+        pageH - 12,
+      );
+      doc.setTextColor(0);
+      doc.setFontSize(10);
+    };
+    stampPage();
+
     selected.forEach((order, i) => {
-      if (i > 0 && i % perPage === 0) doc.addPage();
+      if (i > 0 && i % perPage === 0) {
+        doc.addPage();
+        stampPage();
+      }
       const posInPage = i % perPage;
       const col = posInPage % cols;
       const row = Math.floor(posInPage / cols);
@@ -448,8 +499,11 @@ export default function Orders() {
       // contra el desborde: aunque el visor sustituya la fuente y dibuje más
       // ancho de lo calculado, el texto se corta en el borde en vez de
       // invadir la etiqueta vecina.
+      // El `null` es imprescindible: sin él, rect() traza el rectángulo (`re S`)
+      // y cierra el trazado, dejando al `W` sin nada que recortar. El recorte
+      // quedaría escrito en el PDF pero sin ningún efecto.
       doc.saveGraphicsState();
-      doc.rect(labelX, labelY, LABEL_W, LABEL_H);
+      doc.rect(labelX, labelY, LABEL_W, LABEL_H, null);
       doc.clip();
       doc.discardPath();
 
@@ -487,7 +541,7 @@ export default function Orders() {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       const phoneY = contentTop + 12 + nameHeight + 6;
-      doc.text(`Tel: ${phone}`, x, phoneY);
+      doc.text(sanitizeForPdf(`Tel: ${phone}`), x, phoneY);
 
       // Address
       doc.setFont('helvetica', 'normal');
@@ -518,7 +572,12 @@ export default function Orders() {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(220, 50, 50);
-        doc.text(`COBRAR: ${formatCurrency(order.total)}`, x, labelY + LABEL_H - MARGIN - 10);
+        // formatCurrency usa espacio duro (U+00A0) entre el símbolo y el monto.
+        doc.text(
+          sanitizeForPdf(`COBRAR: ${formatCurrency(order.total)}`),
+          x,
+          labelY + LABEL_H - MARGIN - 10,
+        );
         doc.setTextColor(0, 0, 0);
       }
 
