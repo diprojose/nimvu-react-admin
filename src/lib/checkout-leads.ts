@@ -15,8 +15,26 @@ export function normalizePhone(raw?: string): string | null {
   return null;
 }
 
+/**
+ * `lead.name` solo se llena cuando el cliente alcanzó a completar "quién recibe
+ * el pedido", que es justo el paso donde muchos abandonan. La dirección casi
+ * siempre llega antes y trae el nombre partido en first_name/last_name, así que
+ * es la mejor fuente disponible.
+ */
+export function leadDisplayName(lead: CheckoutLead): string {
+  if (lead.name?.trim()) return lead.name.trim();
+
+  const addr = lead.shippingAddress;
+  const fromAddress = [addr?.first_name, addr?.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return fromAddress || addr?.name?.trim() || '';
+}
+
 const firstName = (lead: CheckoutLead) =>
-  (lead.name || lead.shippingAddress?.name || '').trim().split(/\s+/)[0] || '';
+  leadDisplayName(lead).split(/\s+/)[0] || '';
 
 /** Mensaje prellenado. El vendedor lo puede editar antes de enviarlo. */
 export function buildWhatsappMessage(lead: CheckoutLead): string {

@@ -223,6 +223,9 @@ export interface OrderItem {
  */
 export interface ShippingAddress {
   name?: string;
+  /** La tienda guarda el nombre partido en dos, no en `name`. */
+  first_name?: string;
+  last_name?: string;
   street?: string;
   address_1?: string;
   address_2?: string;

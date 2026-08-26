@@ -39,7 +39,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/dashboard';
-import { buildWhatsappUrl, timeAgo, isFresh } from '@/lib/checkout-leads';
+import { buildWhatsappUrl, timeAgo, isFresh, leadDisplayName } from '@/lib/checkout-leads';
 import type { CheckoutLead, CheckoutLeadStatus } from '@/types';
 
 const STATUS_LABEL: Record<CheckoutLeadStatus, string> = {
@@ -188,7 +188,7 @@ export default function CheckoutLeads() {
                       onClick={() => openDetail(lead)}
                     >
                       <div className="font-medium">
-                        {lead.name || lead.shippingAddress?.name || 'Sin nombre'}
+                        {leadDisplayName(lead) || 'Sin nombre'}
                       </div>
                       <div className="text-xs text-muted-foreground">{lead.email}</div>
                     </button>
@@ -293,10 +293,10 @@ export default function CheckoutLeads() {
       </div>
 
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(undefined)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {detail?.name || detail?.shippingAddress?.name || 'Carrito abandonado'}
+              {(detail && leadDisplayName(detail)) || 'Carrito abandonado'}
             </DialogTitle>
           </DialogHeader>
           {detail && (
@@ -335,15 +335,19 @@ export default function CheckoutLeads() {
                   {detail.items.map((item, idx) => (
                     <div
                       key={`${item.productId}-${item.variantId ?? idx}`}
-                      className="flex items-center justify-between gap-2"
+                      className="flex items-start justify-between gap-3"
                     >
-                      <span className="truncate">
+                      {/* min-w-0 es lo que deja encoger al texto: sin eso el
+                          nombre no cede y se monta encima del precio. Se deja
+                          envolver en vez de truncar porque en el detalle el
+                          vendedor necesita leer qué producto es. */}
+                      <span className="flex-1 min-w-0 break-words">
                         {item.quantity}x {item.name}
                         {item.variantName && (
                           <span className="text-muted-foreground"> ({item.variantName})</span>
                         )}
                       </span>
-                      <span className="shrink-0">
+                      <span className="shrink-0 tabular-nums">
                         {formatCurrency(item.price * item.quantity)}
                       </span>
                     </div>
