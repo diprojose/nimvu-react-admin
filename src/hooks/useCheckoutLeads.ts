@@ -18,6 +18,24 @@ export function useCheckoutLeads(includeConverted = false) {
   });
 }
 
+/**
+ * Un lead puntual. Lo usa el editor de órdenes manuales para precargar el
+ * carrito abandonado cuando se llega con `?leadId=`.
+ *
+ * A diferencia del listado, este trae el lead aunque ya esté convertido o
+ * marcado como perdido: si alguien abrió el link es porque quiere trabajarlo.
+ */
+export function useCheckoutLead(id?: string) {
+  return useQuery({
+    queryKey: ['checkout-lead', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data } = await api.get<CheckoutLead>(`/checkout-leads/${id}`);
+      return data;
+    },
+  });
+}
+
 export function useUpdateCheckoutLead() {
   const queryClient = useQueryClient();
 

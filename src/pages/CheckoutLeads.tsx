@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useCheckoutLeads,
   useUpdateCheckoutLead,
@@ -37,6 +38,7 @@ import {
   Trash,
   ShoppingBag,
   Phone,
+  FilePlus,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/dashboard';
 import { buildWhatsappUrl, timeAgo, isFresh, leadDisplayName } from '@/lib/checkout-leads';
@@ -57,11 +59,50 @@ function StatusBadge({ lead }: { lead: CheckoutLead }) {
   return <Badge variant="destructive">Sin contactar</Badge>;
 }
 
+/**
+ * Los dos numeros con los que se cierra por WhatsApp: lo que le cuesta el envio
+ * y cuanto le falta para que salga gratis. La tarifa la resuelve el backend con
+ * la zona de la direccion, asi que no hay que sacar la cuenta a mano lead por
+ * lead ni acordarse del umbral.
+ */
+function ShippingCell({ lead }: { lead: CheckoutLead }) {
+  if (lead.shippingCost === null) {
+    return (
+      <span className="text-muted-foreground italic text-xs">
+        Sin dirección
+      </span>
+    );
+  }
+
+  if (lead.shippingCost === 0) {
+    return (
+      <div>
+        <span className="font-medium text-green-600">Gratis</span>
+        <div className="text-xs text-muted-foreground">
+          el envío no fue el motivo
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <span className="font-medium">{formatCurrency(lead.shippingCost)}</span>
+      {lead.freeShippingGap !== null && (
+        <div className="text-xs text-amber-600">
+          faltan {formatCurrency(lead.freeShippingGap)} para envío gratis
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CheckoutLeads() {
   const [includeConverted, setIncludeConverted] = useState(false);
   const { data: leads, isLoading, error } = useCheckoutLeads(includeConverted);
   const updateLead = useUpdateCheckoutLead();
   const deleteLead = useDeleteCheckoutLead();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<CheckoutLead | undefined>();
   const [noteDraft, setNoteDraft] = useState('');
 
@@ -78,6 +119,17 @@ export default function CheckoutLeads() {
 
   const setStatus = (lead: CheckoutLead, status: CheckoutLeadStatus) =>
     updateLead.mutate({ id: lead.id, status });
+
+  /**
+   * Cerrar la venta por WhatsApp: abre el editor de órdenes manuales con el
+   * carrito ya cargado. Se edita allá y no aquí porque ese editor ya sabe
+   * cambiar productos, precios y dirección.
+   *
+   * No hace falta marcar el lead: cuando la orden se crea, el backend la cruza
+   * por correo y el lead sale solo de la lista.
+   */
+  const convertir = (lead: CheckoutLead) =>
+    navigate(`/orders/new?leadId=${lead.id}`);
 
   const openDetail = (lead: CheckoutLead) => {
     setDetail(lead);
@@ -165,6 +217,7 @@ export default function CheckoutLeads() {
               <TableHead>Teléfono</TableHead>
               <TableHead>Carrito</TableHead>
               <TableHead>Valor</TableHead>
+              <TableHead>Envío</TableHead>
               <TableHead>Abandonado</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -173,7 +226,7 @@ export default function CheckoutLeads() {
           <TableBody>
             {!leads?.length && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                   No hay carritos abandonados por ahora.
                 </TableCell>
               </TableRow>
@@ -209,6 +262,9 @@ export default function CheckoutLeads() {
                   </TableCell>
                   <TableCell className="font-medium">
                     {formatCurrency(lead.subtotal)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    <ShippingCell lead={lead} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {timeAgo(lead.capturedAt)}
@@ -253,6 +309,9 @@ export default function CheckoutLeads() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>{STATUS_LABEL[lead.status]}</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => convertir(lead)}>
+                            <FilePlus className="h-4 w-4 mr-2" /> Convertir en orden
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openDetail(lead)}>
                             Ver detalle
                           </DropdownMenuItem>
@@ -353,10 +412,34 @@ export default function CheckoutLeads() {
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-between font-medium border-t mt-2 pt-2">
+                <div className="flex justify-between border-t mt-2 pt-2">
                   <span>Subtotal</span>
                   <span>{formatCurrency(detail.subtotal)}</span>
                 </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Envío</span>
+                  <span>
+                    {detail.shippingCost === null
+                      ? 'sin dirección'
+                      : detail.shippingCost === 0
+                        ? 'Gratis'
+                        : formatCurrency(detail.shippingCost)}
+                  </span>
+                </div>
+                {detail.shippingCost !== null && (
+                  <div className="flex justify-between font-medium border-t mt-1 pt-1">
+                    <span>Total</span>
+                    <span>{formatCurrency(detail.subtotal + detail.shippingCost)}</span>
+                  </div>
+                )}
+                {/* El upsell que evita regalar el envío: si le faltan pocos
+                    miles, sale más barato sugerirle otro producto. */}
+                {detail.freeShippingGap !== null && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    Agregando {formatCurrency(detail.freeShippingGap)} más, el envío
+                    le sale gratis.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -378,6 +461,12 @@ export default function CheckoutLeads() {
                 </Button>
                 <Button onClick={saveNote} disabled={updateLead.isPending}>
                   Guardar nota
+                </Button>
+                <Button
+                  className="gap-2 bg-black text-white hover:bg-gray-800"
+                  onClick={() => convertir(detail)}
+                >
+                  <FilePlus className="h-4 w-4" /> Convertir en orden
                 </Button>
               </div>
             </div>

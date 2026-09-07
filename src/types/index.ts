@@ -278,6 +278,18 @@ export interface CheckoutLead {
    * defecto ya los filtra.
    */
   converted: boolean;
+  /**
+   * Envío que le corresponde hoy según la zona de la dirección, calculado por
+   * el backend con las tarifas vigentes. `null` cuando el lead no alcanzó a
+   * dejar dirección: sin zona no hay tarifa, y mostrar un número inventado
+   * llevaría a ofrecerle al cliente un precio equivocado.
+   */
+  shippingCost: number | null;
+  /**
+   * Cuánto le falta al carrito para el envío gratis. `null` si ya lo alcanzó,
+   * en cuyo caso el abandono no fue por el costo del envío.
+   */
+  freeShippingGap: number | null;
 }
 
 /** Variant payload sent to the API when creating/updating a product. */
@@ -372,4 +384,50 @@ export interface Expense {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Costos del negocio con los que se calcula el precio de un producto impreso.
+ * Es una fila única en la base: hay un solo juego de costos vigente.
+ */
+export interface PricingSettings {
+  id: string;
+  /** COP por kilo de filamento, tal como se compra el rollo. */
+  filamentPricePerKg: number;
+  /** Fracción de material que se pierde en fallos y purga (0.06 = 6%). */
+  wastePercent: number;
+  printerWatts: number;
+  energyPricePerKwh: number;
+  printerCost: number;
+  printerLifeHours: number;
+  laborPricePerHour: number;
+  packagingCost: number;
+  /** Margen objetivo sobre el precio de venta (0.5 = 50%), no un multiplicador. */
+  targetMargin: number;
+  paymentFeePercent: number;
+  roundingStep: number;
+  updatedAt: string;
+}
+
+/** Lo que se copia del slice de Bambu Studio, más el trabajo manual estimado. */
+export interface PriceInput {
+  grams: number;
+  hours: number;
+  laborMinutes: number;
+}
+
+export interface PriceBreakdown {
+  material: number;
+  waste: number;
+  energy: number;
+  depreciation: number;
+  labor: number;
+  packaging: number;
+  cost: number;
+  suggestedPrice: number;
+  roundedPrice: number;
+  margin: number;
+  marginAfterFee: number;
+  /** Solo cuando el producto por sí solo dispara el envío gratis. */
+  marginWithFreeShipping: number | null;
 }

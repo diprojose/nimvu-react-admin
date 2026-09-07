@@ -1,7 +1,7 @@
 declare global { interface Window { dataLayer: unknown[] } }
 
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCreateManualOrder, type ManualOrderItem } from '@/hooks/useOrders';
 import { useProducts } from '@/hooks/useProducts';
-import { Trash2, Plus, Search, ChevronRight } from 'lucide-react';
+import { Trash2, Plus, Search, ChevronRight, ShoppingBag } from 'lucide-react';
+import { useCheckoutLead } from '@/hooks/useCheckoutLeads';
+import { leadDisplayName } from '@/lib/checkout-leads';
 import type { Product, Variant } from '@/types';
 
 const formatCurrency = (n: number) =>
@@ -25,6 +27,12 @@ export default function ManualOrderEditor() {
   const navigate = useNavigate();
   const createManualOrder = useCreateManualOrder();
   const { data: products = [] } = useProducts();
+
+  // Conversión de un carrito abandonado: se llega desde la lista de leads con
+  // ?leadId=. Sin el parámetro esta pantalla se comporta como siempre.
+  const [searchParams] = useSearchParams();
+  const leadId = searchParams.get('leadId') ?? undefined;
+  const { data: lead, isLoading: loadingLead } = useCheckoutLead(leadId);
 
   // Cliente
   const [customerName, setCustomerName] = useState('');
@@ -49,6 +57,47 @@ export default function ManualOrderEditor() {
 
   const [error, setError] = useState<string | null>(null);
   let keyCounter = 0;
+
+  // Solo se precarga una vez. Sin esta guarda, cualquier refetch de react-query
+  // (volver a la pestaña, por ejemplo) le borraría a quien esté editando lo que
+  // llevaba escrito y lo reemplazaría por el carrito original.
+  const prefilled = useRef(false);
+
+  useEffect(() => {
+    if (!lead || prefilled.current) return;
+    prefilled.current = true;
+
+    const addr = lead.shippingAddress;
+
+    setCustomerName(leadDisplayName(lead));
+    setCustomerPhone(lead.phone || addr?.phone || '');
+    // El correo es lo que cierra el ciclo: el backend detecta la conversión
+    // cruzando el email de la orden contra el del lead, así que si se borra,
+    // el lead se queda para siempre en la lista de pendientes.
+    setCustomerEmail(lead.email);
+
+    setAddress(addr?.address_1 || addr?.street || '');
+    setCity(addr?.city || '');
+    setState(addr?.province || addr?.state || '');
+
+    setLineItems(
+      lead.items.map((item, i) => ({
+        _key: Date.now() + i,
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+        // Precio del carrito, no el actual: es el que el cliente vio y el que
+        // se le prometió. Si el catálogo cambió, se avisa en la línea.
+        price: item.price,
+        productName: item.name,
+        variantName: item.variantName,
+      })),
+    );
+
+    // El envío es justo lo que se va a negociar, así que se precarga la tarifa
+    // vigente de su zona para que solo haya que bajarla a lo acordado.
+    setShippingCost(lead.shippingCost ?? 0);
+  }, [lead]);
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase())
@@ -80,6 +129,31 @@ export default function ManualOrderEditor() {
 
   const removeItem = (key: number) => {
     setLineItems((prev) => prev.filter((item) => item._key !== key));
+  };
+
+  /**
+   * Contrasta la línea contra el catálogo de hoy. Solo importa al convertir un
+   * carrito abandonado: ahí el precio viene congelado del día de la captura y
+   * el producto pudo haber cambiado de precio o haber salido del catálogo.
+   *
+   * Devuelve null cuando todo coincide, que es el caso normal y no merece ruido
+   * en pantalla.
+   */
+  const lineWarning = (item: LineItem): string | null => {
+    const product = products.find((p) => p.id === item.productId);
+    // Desapareció del catálogo (borrado o desactivado). Callarlo llevaría a
+    // venderle al cliente algo que ya no se puede despachar.
+    if (!product) return 'ya no está en el catálogo';
+
+    const variant = item.variantId
+      ? product.variants?.find((v) => v.id === item.variantId)
+      : undefined;
+    if (item.variantId && !variant) return 'esa variante ya no existe';
+
+    const current = variant?.price ?? product.price;
+    if (current === item.price) return null;
+
+    return `hoy en catálogo: ${formatCurrency(current)}`;
   };
 
   const subtotal = lineItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -173,9 +247,13 @@ export default function ManualOrderEditor() {
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <Link to="/orders" className="hover:text-foreground">Órdenes</Link>
               <ChevronRight className="h-3.5 w-3.5" />
-              <span className="truncate text-foreground">Nueva orden manual</span>
+              <span className="truncate text-foreground">
+                {leadId ? 'Cerrar carrito abandonado' : 'Nueva orden manual'}
+              </span>
             </div>
-            <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Nueva orden manual</h1>
+            <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
+              {leadId ? 'Cerrar carrito abandonado' : 'Nueva orden manual'}
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => navigate('/orders')} disabled={createManualOrder.isPending}>
@@ -194,6 +272,40 @@ export default function ManualOrderEditor() {
       </div>
 
       <div className="mx-auto max-w-3xl space-y-6">
+        {loadingLead && (
+          <div className="rounded border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Cargando el carrito abandonado...
+          </div>
+        )}
+
+        {lead && (
+          <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm">
+            <div className="flex items-start gap-2">
+              <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+              <div className="space-y-1">
+                <p className="font-medium text-blue-900">
+                  Carrito abandonado de {leadDisplayName(lead) || lead.email}
+                </p>
+                {lead.freeShippingGap !== null && (
+                  <p className="text-blue-800">
+                    Agregando {formatCurrency(lead.freeShippingGap)} más, el envío
+                    le sale gratis: puede salir más barato que bajarle el envío.
+                  </p>
+                )}
+                {/* Si ya compró, crear otra orden duplica la venta y descuenta
+                    el stock dos veces. Es el error que no se puede deshacer
+                    solo, asi que se avisa antes y no despues. */}
+                {lead.converted && (
+                  <p className="font-medium text-red-700">
+                    Ojo: este cliente ya tiene una orden posterior al carrito.
+                    Revisa antes de crear otra.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="bg-red-50 text-red-700 text-sm p-3 rounded border border-red-200">
             {error}
@@ -329,6 +441,14 @@ export default function ManualOrderEditor() {
                         <span className="font-medium">{item.productName}</span>
                         {item.variantName && (
                           <span className="text-gray-400 text-xs block">{item.variantName}</span>
+                        )}
+                        {/* Red de seguridad al convertir: si el producto bajó de
+                            precio hay que cobrarle lo menos, y si subió conviene
+                            saber que se está honrando el precio viejo. */}
+                        {lineWarning(item) && (
+                          <span className="text-amber-600 text-xs block">
+                            {lineWarning(item)}
+                          </span>
                         )}
                       </td>
                       <td className="p-2">
