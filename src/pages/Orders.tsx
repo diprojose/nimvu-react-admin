@@ -28,11 +28,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X, Truck, MessageCircle, Check, Wrench } from "lucide-react";
+import { MoreHorizontal, Eye, Trash, Copy, Plus, Download, Mail, Printer, Search, X, Truck, Wrench } from "lucide-react";
 import { jsPDF } from 'jspdf';
 import { useState, useMemo } from 'react';
 import { useOrders, useUpdateOrder, useDeleteOrder, useSendRecoveryEmail } from '@/hooks/useOrders';
 import { PostSaleSection } from '@/components/orders/PostSaleSection';
+import { ShippingDialog } from '@/components/orders/ShippingDialog';
+import { CARRIER_LABELS } from '@/lib/shipping';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -63,36 +65,6 @@ const PAYMENT_LABELS: Record<string, string> = {
   CASH_ON_DELIVERY: 'Contra Entrega',
   WHATSAPP: 'WhatsApp',
   MERCADO_LIBRE: 'Mercado Libre',
-};
-
-const CARRIER_LABELS: Record<ShippingCarrier, string> = {
-  ENVIA: 'Envía',
-  SERVIENTREGA: 'Servientrega',
-};
-
-const CARRIER_TRACKING_URL: Record<ShippingCarrier, string> = {
-  ENVIA: 'https://envia.co/',
-  SERVIENTREGA: 'https://www.servientrega.com/wps/portal/rastreo-envio',
-};
-
-const buildWhatsappMessage = (
-  name: string | undefined,
-  orderId: string,
-  carrier: ShippingCarrier,
-  tracking: string,
-) => {
-  const firstName = (name || '').split(' ')[0] || 'Hola';
-  return `¡Hola ${firstName}! 👋
-
-Tu pedido #${orderId.slice(0, 8)} de Nimvu ya está en camino 🚚
-
-📦 Transportadora: ${CARRIER_LABELS[carrier]}
-🔢 Número de guía: ${tracking}
-
-Puedes hacer seguimiento aquí:
-${CARRIER_TRACKING_URL[carrier]}
-
-¡Gracias por elegir Nimvu! 💛`;
 };
 
 /**
@@ -201,9 +173,6 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [shippingOrder, setShippingOrder] = useState<any>(null);
-  const [carrierInput, setCarrierInput] = useState<ShippingCarrier | ''>('');
-  const [trackingInput, setTrackingInput] = useState('');
-  const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -303,77 +272,25 @@ export default function Orders() {
     setIsDetailOpen(true);
   };
 
-  const openShipping = (order: any) => {
-    setShippingOrder(order);
-    setCarrierInput((order.shippingCarrier as ShippingCarrier) || '');
-    setTrackingInput(order.trackingNumber || '');
-  };
+  // Los campos del envío ya no viven aquí: los maneja ShippingDialog con estado
+  // propio, para que teclear la guía no repinte la tabla completa.
+  const openShipping = (order: any) => setShippingOrder(order);
 
-  const closeShipping = () => {
-    setShippingOrder(null);
-    setCarrierInput('');
-    setTrackingInput('');
-    setCopiedWhatsapp(false);
-  };
+  const closeShipping = () => setShippingOrder(null);
 
-  const getCustomerPhone = (order: any): string => {
-    const addr = typeof order?.shippingAddress === 'string'
-      ? (() => { try { return JSON.parse(order.shippingAddress); } catch { return {}; } })()
-      : (order?.shippingAddress || {});
-    return (addr.phone || '').toString();
-  };
-
-  const buildWaLink = (order: any, message: string) => {
-    let phone = getCustomerPhone(order).replace(/\D/g, '');
-    if (!phone) return null;
-    if (phone.length === 10) phone = `57${phone}`;
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-  };
-
-  const handleCopyWhatsapp = async () => {
-    if (!shippingOrder || !carrierInput || !trackingInput.trim()) return;
-    const msg = buildWhatsappMessage(
-      shippingOrder.user?.name,
-      shippingOrder.id,
-      carrierInput,
-      trackingInput.trim(),
-    );
-    try {
-      await navigator.clipboard.writeText(msg);
-      setCopiedWhatsapp(true);
-      setTimeout(() => setCopiedWhatsapp(false), 2000);
-    } catch {
-      alert('No se pudo copiar al portapapeles.');
-    }
-  };
-
-  const handleOpenWhatsapp = () => {
-    if (!shippingOrder || !carrierInput || !trackingInput.trim()) return;
-    const msg = buildWhatsappMessage(
-      shippingOrder.user?.name,
-      shippingOrder.id,
-      carrierInput,
-      trackingInput.trim(),
-    );
-    const link = buildWaLink(shippingOrder, msg);
-    if (!link) {
-      alert('Esta orden no tiene un teléfono válido. Usa "Copiar mensaje" y pégalo en WhatsApp.');
-      return;
-    }
-    window.open(link, '_blank');
-  };
-
-  const handleSaveShipping = () => {
+  const handleSaveShipping = ({
+    carrier,
+    tracking,
+  }: {
+    carrier: ShippingCarrier;
+    tracking: string;
+  }) => {
     if (!shippingOrder) return;
-    if (!carrierInput || !trackingInput.trim()) {
-      alert('Selecciona transportadora y escribe el número de guía.');
-      return;
-    }
     updateOrder.mutate(
       {
         id: shippingOrder.id,
-        shippingCarrier: carrierInput,
-        trackingNumber: trackingInput.trim(),
+        shippingCarrier: carrier,
+        trackingNumber: tracking,
       },
       {
         onSuccess: () => closeShipping(),
@@ -1053,94 +970,15 @@ export default function Orders() {
 
       {/* ── MODAL NUEVA ORDEN MANUAL ── */}
 
-      {/* ── MODAL AGREGAR/EDITAR ENVÍO ── */}
-      <Dialog open={!!shippingOrder} onOpenChange={(open) => { if (!open) closeShipping(); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {shippingOrder?.trackingNumber ? 'Editar envío' : 'Agregar envío'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <label className="text-sm font-medium text-gray-700">Transportadora</label>
-              <Select
-                value={carrierInput || undefined}
-                onValueChange={(v) => setCarrierInput(v as ShippingCarrier)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecciona transportadora" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(CARRIER_LABELS) as ShippingCarrier[]).map((key) => (
-                    <SelectItem key={key} value={key}>{CARRIER_LABELS[key]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Número de guía</label>
-              <input
-                type="text"
-                value={trackingInput}
-                onChange={(e) => setTrackingInput(e.target.value)}
-                placeholder="Ej. 1234567890"
-                className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-              />
-            </div>
-            <p className="text-xs text-gray-500">
-              Se enviará un correo al cliente con el número de guía y el enlace de seguimiento al guardar (si cambia).
-            </p>
-
-            {carrierInput && trackingInput.trim() && (
-              <div className="border-t pt-3">
-                <p className="text-xs font-medium text-gray-700 mb-2">Mensaje para WhatsApp</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCopyWhatsapp}
-                    className="gap-2"
-                  >
-                    {copiedWhatsapp ? (
-                      <>
-                        <Check className="h-4 w-4 text-green-600" />
-                        Copiado
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        Copiar mensaje
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleOpenWhatsapp}
-                    className="gap-2 bg-green-600 text-white hover:bg-green-700"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Abrir WhatsApp
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={closeShipping} disabled={updateOrder.isPending}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSaveShipping}
-                disabled={updateOrder.isPending}
-                className="bg-black text-white hover:bg-gray-800"
-              >
-                {updateOrder.isPending ? 'Guardando...' : 'Guardar'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* key por orden: reinicia los campos al abrirlo con otra orden, sin
+          necesidad de sincronizarlos con un efecto. */}
+      <ShippingDialog
+        key={shippingOrder?.id ?? 'closed'}
+        order={shippingOrder}
+        saving={updateOrder.isPending}
+        onClose={closeShipping}
+        onSave={handleSaveShipping}
+      />
     </div>
   );
 }
