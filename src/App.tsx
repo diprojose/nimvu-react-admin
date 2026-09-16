@@ -9,6 +9,7 @@ import Banners from '@/pages/Banners';
 import Orders from '@/pages/Orders';
 import ManualOrderEditor from '@/pages/ManualOrderEditor';
 import CheckoutLeads from '@/pages/CheckoutLeads';
+import Reviews from "./pages/Reviews";
 import PriceCalculator from '@/pages/PriceCalculator';
 import Users from '@/pages/Users';
 import Collections from '@/pages/Collections';
@@ -37,6 +38,7 @@ function App() {
           <Route path="orders" element={<Orders />} />
           <Route path="orders/new" element={<ManualOrderEditor />} />
           <Route path="checkout-leads" element={<CheckoutLeads />} />
+          <Route path="reviews" element={<Reviews />} />
           <Route path="price-calculator" element={<PriceCalculator />} />
           <Route path="users" element={<Users />} />
           <Route path="accounting" element={<Accounting />} />

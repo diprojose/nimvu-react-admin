@@ -431,3 +431,20 @@ export interface PriceBreakdown {
   /** Solo cuando el producto por sí solo dispara el envío gratis. */
   marginWithFreeShipping: number | null;
 }
+
+// ── Reseñas de producto ────────────────────────────────────────────────────
+
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface Review {
+  id: string;
+  rating: number;
+  comment: string;
+  authorName: string;
+  /** Respuesta pública de Nimvu, si ya se respondió. */
+  adminReply: string | null;
+  status: ReviewStatus;
+  createdAt: string;
+  product: { id: string; name: string; slug: string | null; images: string[] };
+  user: { id: string; email: string; name: string | null };
+}
