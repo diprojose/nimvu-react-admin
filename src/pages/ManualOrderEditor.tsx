@@ -12,6 +12,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { Trash2, Plus, Search, ChevronRight, ShoppingBag } from 'lucide-react';
 import { useCheckoutLead } from '@/hooks/useCheckoutLeads';
 import { leadDisplayName } from '@/lib/checkout-leads';
+import { canonicalizeLocation, citiesOf, departments } from '@/lib/colombia';
 import type { Product, Variant } from '@/types';
 
 const formatCurrency = (n: number) =>
@@ -43,6 +44,18 @@ export default function ManualOrderEditor() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  // Lo que traía una dirección precargada cuando no se pudo casar con la lista:
+  // se muestra para no perder el dato y que se elija el equivalente a mano.
+  const [unmatchedLocation, setUnmatchedLocation] = useState<{ state?: string; city?: string }>({});
+
+  const cityOptions = citiesOf(state);
+
+  const handleStateChange = (value: string) => {
+    // Cambiar de departamento invalida la ciudad: son listas dependientes.
+    setState(value);
+    setCity('');
+    setUnmatchedLocation({});
+  };
 
   // Items
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -77,8 +90,19 @@ export default function ManualOrderEditor() {
     setCustomerEmail(lead.email);
 
     setAddress(addr?.address_1 || addr?.street || '');
-    setCity(addr?.city || '');
-    setState(addr?.province || addr?.state || '');
+
+    // La dirección del lead la escribió el cliente en la tienda, así que suele
+    // venir con los nombres del catálogo, pero puede traer variantes ("bogota
+    // d.c."). Se canoniza para que los selects la reconozcan.
+    const rawState = addr?.province || addr?.state || '';
+    const rawCity = addr?.city || '';
+    const canonical = canonicalizeLocation(rawState, rawCity);
+    setState(canonical.department ?? '');
+    setCity(canonical.city ?? '');
+    setUnmatchedLocation({
+      state: canonical.department ? undefined : rawState || undefined,
+      city: canonical.city ? undefined : rawCity || undefined,
+    });
 
     setLineItems(
       lead.items.map((item, i) => ({
@@ -342,14 +366,44 @@ export default function ManualOrderEditor() {
             <Label>Dirección <span className="text-red-500">*</span></Label>
             <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Calle 123 # 45-67" />
           </div>
+          {/* Departamento primero: la lista de ciudades depende de él. Son
+              selects y no texto libre porque el backend busca la tarifa de
+              envío por nombre, y un "Bogota" sin tilde no encuentra la de
+              "Bogotá". */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Ciudad <span className="text-red-500">*</span></Label>
-              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bogotá" />
+              <Label>Departamento <span className="text-red-500">*</span></Label>
+              <Select value={state} onValueChange={handleStateChange}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un departamento" /></SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {unmatchedLocation.state && (
+                <p className="text-xs text-amber-600">
+                  La dirección decía «{unmatchedLocation.state}»: elige el departamento en la lista.
+                </p>
+              )}
             </div>
             <div className="space-y-1">
-              <Label>Departamento <span className="text-red-500">*</span></Label>
-              <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="Cundinamarca" />
+              <Label>Ciudad <span className="text-red-500">*</span></Label>
+              <Select value={city} onValueChange={setCity} disabled={!state}>
+                <SelectTrigger>
+                  <SelectValue placeholder={state ? 'Selecciona una ciudad' : 'Elige primero el departamento'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {cityOptions.map((option) => (
+                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {unmatchedLocation.city && (
+                <p className="text-xs text-amber-600">
+                  La dirección decía «{unmatchedLocation.city}»: elige la ciudad en la lista.
+                </p>
+              )}
             </div>
           </div>
         </section>
